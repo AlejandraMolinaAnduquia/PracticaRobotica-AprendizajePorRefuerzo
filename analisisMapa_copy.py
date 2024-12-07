@@ -1,13 +1,14 @@
 import cv2
 import numpy as np
 import random
+import comunicacionArduino
 
 from comunicacionArduino import send_command
 # URL de DroidCam
-url = "http://192.168.43.49:4747/video"
+url = "http://192.168.82.178:4747/video"
 # Parámetros de la cuadrícula
-rows = 7  # Número de filas
-cols = 7  # Número de columnas
+rows = 3  # Número de filas
+cols = 3  # Número de columnas
 thickness = 1  # Grosor de las líneas
 # Valores iniciales de Canny
 canny_threshold1 = 50
@@ -292,7 +293,7 @@ probabilidades = {
 
 
 #cap = cv2.VideoCapture(url)
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(url)
 if not cap.isOpened():
     print("No se pudo conectar a la cámara en la URL proporcionada.")
 else:
@@ -303,6 +304,7 @@ else:
     cv2.createTrackbar('Canny Th2', 'Ajustes', canny_threshold2, 255, on_trackbar_change)
     cv2.createTrackbar('Dilatacion', 'Ajustes', 2, 15, on_trackbar_change)
     maze = maze_generate(rows, cols)
+    
     while True:
         ret, frame = cap.read()
         if not ret:
