@@ -19,6 +19,25 @@ def send_command(command):
         time.sleep(0.1)  # Pausa breve para evitar congestión
     else:
         print("La conexión serial no está abierta")
+        
+def get_environment_data():
+    """
+    Obtiene datos del Arduino que representan información del entorno.
+    Devuelve las posiciones iniciales y otros parámetros configurables.
+    """
+    try:
+        response = read_from_arduino()
+        if response:
+            # Interpretar los datos del Arduino. Por ejemplo: "x:0,y:0,alpha:0.1"
+            data = {}
+            for item in response.split(","):
+                key, value = item.split(":")
+                data[key] = float(value) if "." in value else int(value)
+            return data
+    except Exception as e:
+        print(f"Error al leer datos del entorno: {e}")
+    return None
+
 # Función para leer datos del Arduino
 def read_from_arduino():
     print("verificando arduino")

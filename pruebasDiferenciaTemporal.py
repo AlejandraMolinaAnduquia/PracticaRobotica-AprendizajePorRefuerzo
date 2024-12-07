@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 
 # Definición de los estados y las acciones
 NUM_ESTADOS = 9  # Estados: 0 a 8
-NUM_ACCIONES = 4  # Acciones: Izquierda, Arriba, Derecha, Abajo
+NUM_ACCIONES = 4  # Acciones: Arriba, Abajo, Izquierda, Derecha
 
 # Probabilidades iniciales para cada acción en cada estado
 probabilidades = {
-    0: [0, 0, 1, 0], 1: [0, 0, 1, 0], 2: [0, 0, 0, 1],
-    3: [0, 0, 0, 1], 4: [0, 0, 1, 0], 5: [0, 0, 0, 1],
-    6: [0, 0, 1, 0], 7: [0, 0, 1, 0], 8: [0, 0, 0, 0]
+    0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
+    3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
+    6: [0, 0, 0, 1], 7: [0, 0, 0, 1], 8: [0, 0, 0, 0]
 }
 
 # Inicialización de la tabla Q
@@ -19,9 +19,6 @@ def inicializar_Q(nS, nA, probabilidades):
         Q[estado] = probabilidades[estado]
     return Q
 
-# Lógica para obtener la celda del agente
-def obtener_celda_actual(x, y, num_columnas):
-    return x * num_columnas + y
 
 # Función e-greedy
 def e_greedy(s, Q, epsilon):
@@ -89,6 +86,7 @@ def qlearning(Q, alpha, gamma, epsilon, episodios, x_inicial, y_inicial, num_fil
 
 # Movimiento del agente (respetando los bordes del mapa)
 def movimiento(accion, x, y, num_filas, num_columnas):
+    # Recuerda que ahora el orden es: Arriba, Abajo, Izquierda, Derecha
     if accion == 0 and y > 0:  # Izquierda
         y -= 1
     elif accion == 1 and x > 0:  # Arriba
@@ -99,6 +97,13 @@ def movimiento(accion, x, y, num_filas, num_columnas):
         x += 1
     return x, y
 
+# Lógica para obtener la celda del agente
+def obtener_celda_actual(x, y, num_columnas):
+    # Calcular el índice en la cuadrícula
+    if x < 0 or x >= num_filas or y < 0 or y >= num_columnas:
+        raise ValueError("Coordenadas fuera de los límites.")
+    return x * num_columnas + y
+
 # Estado terminal
 def estado_terminal(estado):
     return estado == 8  # Por ejemplo, estado 8 es terminal
@@ -106,7 +111,7 @@ def estado_terminal(estado):
 # Recompensa (ejemplo básico)
 def calcular_recompensa(estado):
     if estado == 8:
-        return 10  # Recompensa máxima
+        return 30  # Recompensa máxima
     return -1  # Penalización por cada paso
 
 # -----------------------------------------------------
