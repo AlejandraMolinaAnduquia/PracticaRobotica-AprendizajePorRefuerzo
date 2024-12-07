@@ -198,6 +198,7 @@ def on_trackbar_change(x):
 
 #Llamada a QLearning, 1 vacio y 0 camino
 probabilidades = {
+    #Arriba, abajo, izquierda, derecha
     0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
     3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
     6: [0, 0, 0, 1], 7: [0, 0, 0, 1], 8: [0, 0, 0, 0]
