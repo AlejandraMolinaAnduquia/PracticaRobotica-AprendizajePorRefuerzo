@@ -1,8 +1,10 @@
 import cv2
 import numpy as np
 import random
+
+from comunicacionArduino import send_command
 # URL de DroidCam
-url = "http://192.168.16.139:4747/video"
+url = "http://192.168.43.49:4747/video"
 # Parámetros de la cuadrícula
 rows = 7  # Número de filas
 cols = 7  # Número de columnas
@@ -10,6 +12,9 @@ thickness = 1  # Grosor de las líneas
 # Valores iniciales de Canny
 canny_threshold1 = 50
 canny_threshold2 = 150
+x_inicial = 0
+y_incial = 0
+
 def maze_generate(filas, columnas):
     """
     Genera un laberinto de dimensiones filas x columnas.
@@ -34,7 +39,7 @@ def maze_generate(filas, columnas):
                 laberinto[x + dx][y + dy] = 0
                 # Continuar el DFS desde la celda siguiente
                 dfs(nx, ny)
-    # Inicializar el laberinto
+    # Inicializar el aberinto
     laberinto[0][0] = 0  # Crear la entrada
     dfs(0, 0)
     # Crear la salida
@@ -154,12 +159,92 @@ def detect_shapes_in_image(image, rows, cols, threshold1, threshold2,dilatacion)
                 })
                 break
     return detected_shapes, image
+
+
+# def mover_robot(tablaQ, cell_index, x, y, num_filas, num_columnas):
+#     """
+#     Mueve al robot basado en la tabla Q y actualiza su posición.
+#     Se asegura de que el movimiento sea consistente con las celdas vecinas.
+#     Verifica que el robot se mueva a la celda correcta y recalibra si es necesario.
+    
+#     Args:
+#         tablaQ (ndarray): Tabla Q que contiene las probabilidades de movimiento.
+#         cell_index (int): Índice de la celda actual del robot.
+#         x (int): Coordenada X actual del robot.
+#         y (int): Coordenada Y actual del robot.
+#         num_filas (int): Número de filas en el laberinto.
+#         num_columnas (int): Número de columnas en el laberinto.
+
+#     Returns:
+#         tuple: Nuevas coordenadas (x, y) y el nuevo índice de celda.
+#     """
+#     # Determinar la acción basada en las probabilidades de la tabla Q
+#     accion = np.argmax(tablaQ[cell_index])
+    
+#     # Movimiento basado en la acción (arriba, abajo, izquierda, derecha)
+#     if accion == 0 and y > 0:  # Izquierda
+#         y -= 1
+#     elif accion == 1 and x > 0:  # Arriba
+#         x -= 1
+#     elif accion == 2 and y < num_columnas - 1:  # Derecha
+#         y += 1
+#     elif accion == 3 and x < num_filas - 1:  # Abajo
+#         x += 1
+
+#     # Calcular el nuevo índice de celda
+#     nuevo_cell_index = x * num_columnas + y
+
+#     # Verificar si el movimiento es válido según la tabla Q
+#     if tablaQ[cell_index, accion] == 0:
+#         print("Movimiento no permitido, recalibrando...")
+#         return x, y, cell_index  # No cambia de celda si el movimiento no es válido
+
+#     # Movimiento válido
+#     print(f"Robot movido a la celda {nuevo_cell_index} (x: {x}, y: {y})")
+#     return x, y, nuevo_cell_index
+
+def mover_robot(tablaQ, cell_index, x, y, num_filas, num_columnas):
+    """
+    Mueve al robot basado en la tabla Q y actualiza su posición.
+    Envía comandos al Arduino para ejecutar el movimiento.
+    """
+    # Determinar la acción basada en las probabilidades de la tabla Q
+    accion = np.argmax(tablaQ[cell_index])
+    
+    # Movimiento basado en la acción (arriba, abajo, izquierda, derecha)
+    if accion == 0 and y > 0:  # Izquierda
+        send_command('a')  # Enviar comando 'izquierda'
+        y -= 1
+    elif accion == 1 and x > 0:  # Arriba
+        send_command('w')  # Enviar comando 'arriba'
+        x -= 1
+    elif accion == 2 and y < num_columnas - 1:  # Derecha
+        send_command('d')  # Enviar comando 'derecha'
+        y += 1
+    elif accion == 3 and x < num_filas - 1:  # Abajo
+        send_command('s')  # Enviar comando 'abajo'
+        x += 1
+
+    # Calcular el nuevo índice de celda
+    nuevo_cell_index = x * num_columnas + y
+
+    # Verificar si el movimiento es válido según la tabla Q
+    if tablaQ[cell_index, accion] == 0:
+        print("Movimiento no permitido, recalibrando...")
+        send_command('x')  # Detener el robot si el movimiento no es válido
+        return x, y, cell_index  # No cambia de celda si el movimiento no es válido
+
+    # Movimiento válido
+    print(f"Robot movido a la celda {nuevo_cell_index} (x: {x}, y: {y})")
+    return x, y, nuevo_cell_index
+
+
 def fill_cells(frame, matrix, alpha=0.7):
     """Rellena de color negro translúcido los cuadrantes correspondientes a los valores '1' en la matriz."""
     rows, cols = len(matrix), len(matrix[0])
     height, width, _ = frame.shape
-    cell_height = height // rows
-    cell_width = width // cols
+    cell_height = height // rows 
+    cell_width = width // cols  
     overlay = frame.copy()  # Hacemos una copia para aplicar el color translúcido
     for i in range(rows):
         for j in range(cols):
@@ -196,7 +281,7 @@ def on_trackbar_change(x):
 # Abre el video desde la URL
 
 
-#Llamada a QLearning, 1 vacio y 0 camino
+#Llamada a QLearning, 1 vacio y 0 camino(tabla Q)
 probabilidades = {
     #Arriba, abajo, izquierda, derecha
     0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
@@ -232,6 +317,15 @@ else:
         print(detected_shapes)
         
         #miver robot
+        # Obtener la celda actual del robot y moverlo
+        if detected_shapes:
+            # Suponiendo que el robot siempre empieza en la celda (0, 0)
+            x, y = 0, 0  # Coordenadas iniciales
+            cell_index = 0
+            for shape in detected_shapes:
+                # Actualizar posición del robot
+                x, y, cell_index = mover_robot(probabilidades, cell_index, x, y, rows, cols)
+
         
         # Dibujar la cuadrícula en el frame
         frame_with_grid = draw_grid(frame_with_shapes, rows, cols, thickness)
