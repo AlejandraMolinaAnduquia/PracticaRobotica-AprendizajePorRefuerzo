@@ -1,5 +1,5 @@
 import cv2
-from comunicacion_arduino import get_environment_data
+#from comunicacionArduino import get_environment_data
 import numpy as np
 import random
 
@@ -85,6 +85,14 @@ def draw_grid(frame, rows, cols, thickness=1):
 
 # Configuración inicial del laberinto
 maze = maze_generate(rows, cols)
+
+#Llamada a QLearning, 1 vacio y 0 camino
+probabilidades = {
+    0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
+    3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
+    6: [0, 0, 0, 1], 7: [0, 0, 0, 1], 8: [0, 0, 0, 0]
+}
+# la tabla la devuelve QLearning
 
 # Conexión a la cámara
 cap = cv2.VideoCapture(0)
