@@ -1,7 +1,6 @@
 import cv2
 import numpy as np
 import random
-import comunicacionArduino
 
 from comunicacionArduino import send_command
 # URL de DroidCam
@@ -15,6 +14,10 @@ canny_threshold1 = 50
 canny_threshold2 = 150
 x_inicial = 0
 y_incial = 0
+nuevoDx = 0
+NuevoDy=0
+cx=0
+cy=0
 
 def maze_generate(filas, columnas):
     """
@@ -67,6 +70,7 @@ def detect_shapes_in_image(image, rows, cols, threshold1, threshold2,dilatacion)
     cell_height = height // rows
     cell_width = width // cols
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    """
     # Umbral inverso para detectar regiones negras
     _, thresh = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY_INV)
     # Detección de círculos con HoughCircles
@@ -111,6 +115,7 @@ def detect_shapes_in_image(image, rows, cols, threshold1, threshold2,dilatacion)
                 "x":center_x,
                 "y":center_y
             })
+    """
     imagenGris = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     bordes = cv2.Canny(gray, threshold1, threshold2)
     kernel = np.ones((dilatacion, dilatacion), np.uint8)
@@ -204,40 +209,83 @@ def detect_shapes_in_image(image, rows, cols, threshold1, threshold2,dilatacion)
 #     print(f"Robot movido a la celda {nuevo_cell_index} (x: {x}, y: {y})")
 #     return x, y, nuevo_cell_index
 
-def mover_robot(tablaQ, cell_index, x, y, num_filas, num_columnas):
+
+    
+def mover_robot(tablaQ, cell_index, x, y):
     """
     Mueve al robot basado en la tabla Q y actualiza su posición.
     Envía comandos al Arduino para ejecutar el movimiento.
     """
+    
+    cx=x
+    cy=y
     # Determinar la acción basada en las probabilidades de la tabla Q
     accion = np.argmax(tablaQ[cell_index])
-    
-    # Movimiento basado en la acción (arriba, abajo, izquierda, derecha)
-    if accion == 0 and y > 0:  # Izquierda
-        send_command('a')  # Enviar comando 'izquierda'
-        y -= 1
-    elif accion == 1 and x > 0:  # Arriba
-        send_command('w')  # Enviar comando 'arriba'
-        x -= 1
-    elif accion == 2 and y < num_columnas - 1:  # Derecha
-        send_command('d')  # Enviar comando 'derecha'
-        y += 1
-    elif accion == 3 and x < num_filas - 1:  # Abajo
-        send_command('s')  # Enviar comando 'abajo'
-        x += 1
+    send_command('w')
+    # Llamada a la función detect_shapes_in_image
+    detected_shapes, _ = detect_shapes_in_image(frame, rows, cols, threshold1, threshold2, dilatacion)
 
-    # Calcular el nuevo índice de celda
-    nuevo_cell_index = x * num_columnas + y
+    if detected_shapes:
+        for shape in detected_shapes:
+            if shape["shape"] == "triangle":
+                # Obtener las coordenadas x, y del círculo
+                nuevoDx = shape["x"]
+                NuevoDy = shape["y"]
+                print(f"Coordenadas del triángulo: x={nuevoDx}, y={NuevoDy}")
 
-    # Verificar si el movimiento es válido según la tabla Q
-    if tablaQ[cell_index, accion] == 0:
-        print("Movimiento no permitido, recalibrando...")
-        send_command('x')  # Detener el robot si el movimiento no es válido
-        return x, y, cell_index  # No cambia de celda si el movimiento no es válido
-
-    # Movimiento válido
-    print(f"Robot movido a la celda {nuevo_cell_index} (x: {x}, y: {y})")
-    return x, y, nuevo_cell_index
+                #arriba
+                if accion == 0:
+                    if cx > nuevoDx:
+                        send_command('s')
+                        send_command('d')
+                    elif cx < nuevoDx:
+                        send_command('s')
+                        send_command('i')
+                    if cy > NuevoDy:
+                        send_command('s')
+                        send_command('d')
+                    elif cy < NuevoDy:
+                        send_command('w')
+                        
+                #abajo
+                if accion == 1:
+                    if cx > nuevoDx:
+                        send_command('s')
+                        send_command('d')
+                    elif cx < nuevoDx:
+                        send_command('s')
+                        send_command('i')
+                    if cy > NuevoDy:
+                        send_command('w')
+                    elif cy < NuevoDy: 
+                        send_command('s')
+                        send_command('d')
+                        
+                #izquierda 
+                if accion ==2:
+                    if cx > nuevoDx:
+                        send_command('s')
+                        send_command('i')
+                    elif cx < nuevoDx:
+                        send_command('W')
+                    if cy > NuevoDy:
+                        send_command('s')
+                        send_command('d')
+                    elif cy < NuevoDy: 
+                        send_command('w')
+                #derecha      
+                if accion ==3:
+                    if cx > nuevoDx:
+                        send_command('W')
+                    elif cx < nuevoDx:
+                        send_command('s')
+                        send_command('i')
+                    if cy > NuevoDy:
+                        send_command('s')
+                        send_command('d')
+                    elif cy < NuevoDy: 
+                        send_command('w')
+        
 
 
 def fill_cells(frame, matrix, alpha=0.7):
@@ -292,8 +340,8 @@ probabilidades = {
 # despues la tabla la devuelve QLearning
 
 
+cap = cv2.VideoCapture(0)
 #cap = cv2.VideoCapture(url)
-cap = cv2.VideoCapture(url)
 if not cap.isOpened():
     print("No se pudo conectar a la cámara en la URL proporcionada.")
 else:
@@ -318,15 +366,14 @@ else:
         detected_shapes, frame_with_shapes = detect_shapes_in_image(frame, rows, cols, threshold1, threshold2,dilatacion)
         print(detected_shapes)
         
-        #miver robot
-        # Obtener la celda actual del robot y moverlo
         if detected_shapes:
-            # Suponiendo que el robot siempre empieza en la celda (0, 0)
-            x, y = 0, 0  # Coordenadas iniciales
-            cell_index = 0
             for shape in detected_shapes:
-                # Actualizar posición del robot
-                x, y, cell_index = mover_robot(probabilidades, cell_index, x, y, rows, cols)
+                if shape["shape"] == "triangle":
+                    # Obtener las coordenadas x, y del círculo
+                    cell_index= shape["cell_index"]
+                    x = shape["x"]
+                    y = shape["y"]
+                    mover_robot(probabilidades, cell_index, x, y)
 
         
         # Dibujar la cuadrícula en el frame
