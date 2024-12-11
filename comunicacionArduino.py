@@ -1,7 +1,7 @@
 import serial
 import time
 # Confiqguración del puerto serial
-PORT = "COM8"  # Cambia esto según el puerto asignado al Bluetooth
+PORT = "COM6"  # Cambia esto según el puerto asignado al Bluetooth
 BAUD_RATE = 115200  # Velocidad de comunicación
 # Crear la conexión serial
 try:
@@ -45,3 +45,27 @@ def read_from_arduino():
         data = bt_connection.readline().decode('utf-8').strip()
         return data
     return None
+
+
+    """
+     while True:
+        print("\nControl del mBot:")
+        print("w - Adelante")
+        print("s - Atrás")
+        print("a - Izquierda")
+        print("d - Derecha")
+        print("x - Detener")
+        print("q - Salir")
+        command = input("Ingresa un comando: ").strip().lower()
+        if command == 'q':  # Salir del programa
+            print("Cerrando conexión...")
+            break
+        elif command in ['w', 's', 'a', 'd', 'x']:
+            send_command(command)  # Enviar el comando válido
+        else:
+            print("Comando no reconocido")
+        # Leer datos del Arduino y mostrarlos en la consola
+        response = read_from_arduino()
+        if response:
+            print(f"Arduino dice: {response}")
+    """
