@@ -1,248 +1,121 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 
-def mostrar_estado(env, S):
-    '''Imprime en pantalla el estado actual (ubicación del taxi,
-    destino y origen)
+# --- MAPA ESTÁTICO ---
+# Representación del entorno (4x4 grid)
+# 0: Espacio vacío
+# 1: Posición inicial del ladrón
+# 2: Posición inicial del policía
+# 3: Lava (estado terminal negativo)
+# 4: Salida segura (estado terminal positivo)
 
-    Parámetros:
-    - env: el entorno de OpenAI Gym
-    - S: el estado actual codificado
-    '''
+environment = np.array([
+    [0, 0, 3, 0],
+    [0, 2, 0, 0],
+    [0, 0, 1, 0],
+    [0, 0, 0, 4]
+])
 
-    # Decodificar el estado
-    tx_fil, tx_col, origen, destino = env.env.decode(S)
+# --- PARÁMETROS DE ENTRENAMIENTO ---
+actions = ['up', 'down', 'left', 'right']  # Conjunto de acciones posibles
+alpha = 0.1   # Tasa de aprendizaje
+gamma = 0.9   # Factor de descuento
+epsilon = 0.1 # Factor de exploración
 
-    # Diccionarios
-    origenes = {0: 'R(ed)', 1: 'G(reen)', 2: 'Y(ellow)', 3: 'B(lue)', 4:'In taxi'}
-    destinos = {0: 'R(ed)', 1: 'G(reen)', 2: 'Y(ellow)', 3: 'B(lue)'}
+def initialize_q_table():
+    """Inicializa una tabla Q con ceros."""
+    return np.zeros((environment.shape[0], environment.shape[1], len(actions)))
 
-    # Imprimir información en pantalla
-    print(f'Ubicación del taxi (fil, col): {tx_fil+1, tx_col+1}')
-    print(f'Origen: {origenes[origen]}')
-    print(f'Destino: {destinos[destino]}')
+# --- FUNCIONES AUXILIARES ---
+def get_next_state(state, action):
+    """Calcula el siguiente estado basado en la acción."""
+    x, y = state
+    if action == 'up':
+        x = max(0, x - 1)
+    elif action == 'down':
+        x = min(environment.shape[0] - 1, x + 1)
+    elif action == 'left':
+        y = max(0, y - 1)
+    elif action == 'right':
+        y = min(environment.shape[1] - 1, y + 1)
+    return (x, y)
 
-# -----------------------------------------------------
-def inicializar_Q(nS, nA, tipo='ones'):
-    '''
-    Inicializar la función Q(S,A) a valores iguales a 1.
-
-    Parámetros:
-    - nS: número de estados
-    - nA: número de acciones
-
-    Retorna la matriz Q(S,A)
-    '''
-    if tipo == 'ones':
-        Q = np.ones((nS,nA))
-    elif tipo == 'random':
-        Q = np.random.rand(nS,nA)
-
-    return Q
-
-# -----------------------------------------------------
-def e_greedy(s, Q, e, nA):
-    '''
-    Para un estado "s" selecciona una acción proveniente de Q(S,A) usando el enfoque e-greedy
-
-    Parámetros:
-    - s: el estado para el cual se desea obtener la acción
-    - Q(S,A): tabla Q con S estados y A acciones
-    - e: valor de épsilon (entre 0 y 1)
-    - nA: número de acciones
-
-    Retorna la acción seleccionada
-    '''
-
-    if np.random.rand() >= e:
-        # Tomar la mejor acción con una probabilidad 1-e
-        accion = np.argmax(Q[s, :])
+def get_reward(state):
+    """Devuelve la recompensa asociada a un estado."""
+    x, y = state
+    if environment[x, y] == 3:  # Lava
+        return -10
+    elif environment[x, y] == 4:  # Salida segura
+        return 10
     else:
-        # Tomar cualquier acción aleatoriamente (con probabilidad e)
-        accion = np.random.randint(0, nA)
+        return -1  # Penalización por cada paso
 
-    return accion
-
-# -----------------------------------------------------
-def sarsa(env, alpha, gamma, epsilon, nS, nA, K, verbose=False):
-    '''
-    Algoritmo de control SARSA
-
-    Parámetros:
-    - env: el entorno
-    - alpha: la tasa de aprendizaje (entre 0 y 1)
-    - gamma: factor de descuento (entre 0 y 1)
-    - epsilon: parámetro para el algoritmo e-greedy (entre 0 y 1)
-    - nS, nA: número de estados y de acciones
-    - K: número de episodios a generar
-    - verbose: imprimir en pantalla el progreso del entrenamiento (por defecto falso)
-    '''
-
-    # Inicializar Q(S,A) y almacenar retorno (la evolucion del entrenamiento)
-    Q = inicializar_Q(nS, nA)
-    retorno = []
-
-    # Correr K episodios de interacción y estimar Q(S,A)
-    for episodio in range(K):
-        # Inicializar retorno acumulado
-        retorno_acumulado = 0
-
-        # Ir al primer estado del episodio
-        s = env.reset()
-
-        # Elegir acción usando e-greedy
-        a = e_greedy(s, Q, epsilon, nA)
-
-        done = False # Aún no estamos en un estado terminal
-
-        while not done:
-            # Iniciar interacciones y actualizar función Q
-            s_, r_, done, info = env.step(a)
-            a_ = e_greedy(s_, Q, epsilon, nA)
-            retorno_acumulado += r_
-
-            if not done:
-                # Actualizar Q si no es un episodio terminal
-                Q[s, a] += alpha * ( r_ + (gamma * Q[s_, a_] ) - Q[s, a] )
-            else:
-                # Si el episodio es terminal no se añade gamma * Q[S_, a_]
-                # (porque Q[s_, a_] = 0 por ser estado terminal)
-                Q[s, a] += alpha * ( r_ - Q[s, a] )
-                retorno.append(retorno_acumulado)
-
-            # Actualizar el estado y la acción
-            s, a = s_, a_
-
-            # Imprimir información cada 100 episodios
-            if verbose:
-                if episodio%100 == 0:
-                    print(f'Episodio: {episodio+1}/{K}:')
-                    print(f'\t\tRecompensa: {r_}')
-
-
-    # Al finalizar tendremos la tabla Q, que implícitamente
-    # contendrá la política
-    return Q, retorno
-
-# -----------------------------------------------------
-def qlearning(env, alpha, gamma, epsilon, nS, nA, K, verbose=False):
-    '''
-    Algoritmo de control Q-learning
-
-    Parámetros:
-    - env: el entorno
-    - alpha: la tasa de aprendizaje (entre 0 y 1)
-    - gamma: factor de descuento (entre 0 y 1)
-    - epsilon: parámetro para el algoritmo e-greedy
-    - nS, nA: número de estados y de acciones
-    - K: número de episodios a generar
-    - verbose: imprimir en pantalla el progreso del entrenamiento (por defecto falso)
-    '''
-
-    # Inicializar Q(S,A) y almacenar retorno (la evolución del entrenamiento)
-    Q = inicializar_Q(nS, nA)
-    retorno = []
-
-    # Correr K episodios de interacción y estimar Q(S,A)
-    for episodio in range(K):
-        # Inicializar retorno total
-        retorno_acumulado = 0
-
-        # Ir al primer estado del episodio
-        s = env.reset()
-
-        # Elegir acción usando e-greedy
-        a = e_greedy(s, Q, epsilon, nA)
-
-        done = False # Aún no estamos en un estado terminal
-
-        while not done:
-            # Iniciar interacciones y actualizar función Q
-            s_, r_, done, info = env.step(a)
-            a_ = np.argmax(Q[s_, :]) # <---- ESTA ES LA DIFERENCIA CON SARSA
-            retorno_acumulado += r_
-
-            if not done:
-                # Si no es un episodio terminal, actualizar Q
-                Q[s, a] += alpha * ( r_ + (gamma * Q[s_, a_] ) - Q[s, a] )
-            else:
-                # Si el episodio es terminal no se añade gamma * Q[S_, a_]
-                # (porque Q[s_, a_] = 0 por ser estado terminal)
-                Q[s, a] += alpha * ( r_ - Q[s, a] )
-                retorno.append(retorno_acumulado)
-
-            # Actualizar el estado y la acción
-            s, a = s_, a_
-
-            # Imprimir información cada 100 episodios
-            if verbose:
-                if episodio%100 == 0:
-                    print(f'Episodio: {episodio+1}/{K}:')
-                    print(f'\t\tRecompensa final: {r_}')
-
-
-    # Al finalizar tendremos la tabla Q, que implícitamente
-    # contendrá la política
-    return Q, retorno
-
-# -----------------------------------------------------
-def interaccion(env, Q, method=None):
-    it = 0
-    s = env.reset()
-
-    print('Resultado de la interacción:')
-    print('-'*60)
-    print('-'*60)
-
-    # Imprimir estado y entorno iniciales
-    print('**** Entorno-agente al inicio: ****')
-    env.render()
-    _, _, _, dest_i = env.env.decode(s)
-    mostrar_estado(env, s)
-
-    print('\nInteractuando...\n')
-
-    # Hacer que el agente interactúe con el entorno tomando como política
-    # el máximo de la función Q para cada estado
-    a = np.argmax(Q[s,:]) # ¡La política!
-    done = False
-
-    # Interactuar hasta llegar a un estado terminal
-    while not done:
-        it += 1
-        # Iniciar interacciones y actualizar función Q
-        s, r, done, info = env.step(a)
-        a = np.argmax(Q[s, :])
-
-    # Imprimir información final
-    _, _, _, dest_f = env.env.decode(s)
-    if dest_i == dest_f:
-        print(f'\nEl episodio culminó ***EXITOSAMENTE*** en {it} iteraciones')
+def choose_action(q_table, state, epsilon):
+    """Elige una acción usando epsilon-greedy."""
+    if random.uniform(0, 1) < epsilon:
+        return random.choice(range(len(actions)))  # Explorar
     else:
-        print(f'\nEl episodio culminó en {it} iteraciones')
+        x, y = state
+        return np.argmax(q_table[x, y])  # Explotar
 
-    print('**** Entorno-agente al final: ****')
-    env.render()
-    mostrar_estado(env, s)
-    print(f'Recompensa obtenida: {r}')
+# --- ALGORITMO SARSA ---
+def sarsa(num_episodes):
+    q_table = initialize_q_table()
+    for episode in range(num_episodes):
+        state = (2, 2)  # Posición inicial del ladrón
+        action = choose_action(q_table, state, epsilon)
 
-# -----------------------------------------------------
-def graficar_entrenamiento(retornos, titulos):
+        while True:
+            next_state = get_next_state(state, actions[action])
+            reward = get_reward(next_state)
+            next_action = choose_action(q_table, next_state, epsilon)
 
-    # Generar figura
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10, 6),
-    	sharex=True, sharey=True)
+            x, y = state
+            nx, ny = next_state
 
-    # Graficar
-    ax1.plot(retornos[0])
-    ax1.title.set_text(titulos[0])
-    ax2.plot(retornos[1], 'tab:orange')
-    ax2.title.set_text(titulos[1])
-    ax3.plot(retornos[2], 'tab:green')
-    ax3.title.set_text(titulos[2])
-    ax4.plot(retornos[3], 'tab:red')
-    ax4.title.set_text(titulos[3])
+            # Actualización SARSA
+            q_table[x, y, action] += alpha * (
+                reward + gamma * q_table[nx, ny, next_action] - q_table[x, y, action]
+            )
 
-    # Etiquetar ejes
-    plt.setp([ax3, ax4], xlabel='Iteración')
-    plt.setp([ax1, ax3], ylabel='Retorno')
+            state, action = next_state, next_action
+
+            if environment[state] in [3, 4]:  # Estado terminal
+                break
+    return q_table
+
+# --- ALGORITMO Q-LEARNING ---
+def q_learning(num_episodes):
+    q_table = initialize_q_table()
+    for episode in range(num_episodes):
+        state = (2, 2)  # Posición inicial del ladrón
+
+        while True:
+            action = choose_action(q_table, state, epsilon)
+            next_state = get_next_state(state, actions[action])
+            reward = get_reward(next_state)
+
+            x, y = state
+            nx, ny = next_state
+
+            # Actualización Q-Learning
+            q_table[x, y, action] += alpha * (
+                reward + gamma * np.max(q_table[nx, ny]) - q_table[x, y, action]
+            )
+
+            state = next_state
+
+            if environment[state] in [3, 4]:  # Estado terminal
+                break
+    return q_table
+
+# --- EJECUCIÓN Y VISUALIZACIÓN ---
+num_episodes = 1000
+q_table_sarsa = sarsa(num_episodes)
+q_table_qlearning = q_learning(num_episodes)
+
+print("\nTabla Q (SARSA):")
+print(q_table_sarsa)
+
+print("\nTabla Q (Q-Learning):")
+print(q_table_qlearning)
