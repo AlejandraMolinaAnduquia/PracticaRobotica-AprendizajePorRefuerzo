@@ -1,71 +1,44 @@
-import serial
+import socket
 import time
-# Confiqguración del puerto serial
-PORT = "COM6"  # Cambia esto según el puerto asignado al Bluetooth
-BAUD_RATE = 115200  # Velocidad de comunicación
-# Crear la conexión serial
-try:
-    bt_connection = serial.Serial(PORT, BAUD_RATE, timeout=1)
-    print(f"Conectado al puerto {PORT}")
-    time.sleep(2)  # Esperar a que el módulo Bluetooth esté listo
-except Exception as e:
-    print(f"Error al conectar con el puerto {PORT}: {e}")
-    exit()
-# Función para enviar un comando
-def send_command(command):
-    if bt_connection.is_open:
-        bt_connection.write(command.encode('utf-8'))  # Enviar el comando como bytes
-        print(f"Comando enviado: {command}")
-        time.sleep(0.1)  # Pausa breve para evitar congestión
-    else:
-        print("La conexión serial no está abierta")
-        
-def get_environment_data():
+
+bluetooth_socket=None
+# Función para conectar con Bluetooth
+def bluetooth_connect(mac_address):
     """
-    Obtiene datos del Arduino que representan información del entorno.
-    Devuelve las posiciones iniciales y otros parámetros configurables.
+    Conexión Bluetooth de bajo nivel usando sockets
     """
     try:
-        response = read_from_arduino()
-        if response:
-            # Interpretar los datos del Arduino. Por ejemplo: "x:0,y:0,alpha:0.1"
-            data = {}
-            for item in response.split(","):
-                key, value = item.split(":")
-                data[key] = float(value) if "." in value else int(value)
-            return data
+        # Crear un socket Bluetooth
+        sock = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
+
+        # Puerto por defecto (puede variar según el dispositivo)
+        port = 1
+
+        # Intentar conectar
+        print(f"Conectando a {mac_address}...")
+        sock.connect((mac_address, port))
+        print("Conexión establecida exitosamente")
+
+        return sock
+
     except Exception as e:
-        print(f"Error al leer datos del entorno: {e}")
-    return None
+        print(f"Error de conexión: {e}")
+        return None
 
-# Función para leer datos del Arduino
-def read_from_arduino():
-    print("verificando arduino")
-    if bt_connection.is_open and bt_connection.in_waiting > 0:
-        data = bt_connection.readline().decode('utf-8').strip()
-        return data
-    return None
-
-
+# Función para enviar datos a través del socket Bluetooth
+def send_command(message):
     """
-     while True:
-        print("\nControl del mBot:")
-        print("w - Adelante")
-        print("s - Atrás")
-        print("a - Izquierda")
-        print("d - Derecha")
-        print("x - Detener")
-        print("q - Salir")
-        command = input("Ingresa un comando: ").strip().lower()
-        if command == 'q':  # Salir del programa
-            print("Cerrando conexión...")
-            break
-        elif command in ['w', 's', 'a', 'd', 'x']:
-            send_command(command)  # Enviar el comando válido
-        else:
-            print("Comando no reconocido")
-        # Leer datos del Arduino y mostrarlos en la consola
-        response = read_from_arduino()
-        if response:
-            print(f"Arduino dice: {response}")
+    Enviar datos a través del socket Bluetooth
     """
+    try:
+        bluetooth_socket.send(message.encode())
+        print(f"Comando enviado: {message}")
+        time.sleep(0.1)  # Pausa breve para evitar congestión
+    except Exception as e:
+        print(f"Error al enviar datos: {e}")
+TARGET_MAC = "00:1B:10:21:2C:1B"  # Reemplaza con la dirección MAC de tu dispositivo
+
+# Establecer conexión
+bluetooth_socket = bluetooth_connect(TARGET_MAC)
+# for i in range(0,10):
+    # send_command("w")

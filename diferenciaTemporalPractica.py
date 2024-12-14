@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from analisisMapa import x_inicial, y_inicial, alpha, gamma, epsilon, rows, cols
+from analisisMapa2 import x_inicial, y_inicial, alpha, gamma, epsilon, rows, cols
 
 # Definición de los estados y las acciones
 NUM_ESTADOS = 9  # Estados: 0 a 8

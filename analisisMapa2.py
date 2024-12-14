@@ -5,7 +5,7 @@ import math
 
 from comunicacionArduino import send_command
 # URL de DroidCam
-url = "http://192.168.43.165:4747/video"
+url = "http://192.168.43.49:4747/video"
 
 # Parámetros de la cuadrícula
 rows = 3  # Número de filas
@@ -18,6 +18,9 @@ canny_threshold2 = 150
 
 politica_anterior = 3
 politica_actual = 3
+
+margenX =0
+margenY =0
 
 def maze_generate(filas, columnas):
     """
@@ -59,7 +62,9 @@ def maze_generate(filas, columnas):
         laberinto[filas - 2][columnas - 1] = 0  # Romper la pared superior
 
     # Devolver la matriz del laberinto
+    print(laberinto)
     return laberinto
+
 def draw_grid(frame, rows, cols, thickness=1):
     """Dibuja una cuadrícula en el frame."""
     height, width, _ = frame.shape
@@ -174,7 +179,9 @@ def detect_shapes_in_image(image, rows, cols, qr_detector):
             "cell_center_y": cell_center_y,
             "cell_index":cell_index,
             "row": row,
-            "col": col
+            "col": col,
+            "cell_width":cell_width,
+            "cell_height": cell_height,
         })
         cv2.putText(
             image,
@@ -195,7 +202,7 @@ def detect_shapes_in_image(image, rows, cols, qr_detector):
             2
         )
         cv2.putText(image, f"{angle2:.2f}'' ", (center_x-30, center_y + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255),
-                    2,
+                   2,
                     cv2.LINE_AA)
 
 
@@ -267,124 +274,98 @@ def on_trackbar_change(x):
     """Callback para manejar los cambios en las trackbars."""
     pass
 
-"""def mover_robot(tablaQ, cell_index, x, y,angulo):
-    
-    Mueve al robot basado en la tabla Q y actualiza su posición.
-    Envía comandos al Arduino para ejecutar el movimiento.
-    
-    
-    cx=x
-    cy=y
-    # Determinar la acción basada en las probabilidades de la tabla Q
-    accion = np.argmax(tablaQ[cell_index])
-    send_command('w')
-    # Llamada a la función detect_shapes_in_image
-    detected_shapes, _ = detect_shapes_in_image(frame, rows, cols, qr_detector)
-    #angulo 0 adelante, 90 izquierda, 180 atras, 270 derecha
-    if detected_shapes:
-        for shape in detected_shapes:
-            if qr_detector:
-                # Obtener las coordenadas x, y del círculo
-                nuevoDx = shape["x"]
-                NuevoDy = shape["y"]
-                print(f"Coordenadas del triángulo: x={nuevoDx}, y={NuevoDy}")
-
-                #arriba
-                if accion == 0:
-                    if cx > nuevoDx:
-                        send_command('s')
-                        send_command('d')
-                    elif cx < nuevoDx:
-                        send_command('s')
-                        send_command('a')
-                    elif cy > NuevoDy:
-                        send_command('s')
-                        send_command('d')
-                    elif cy < NuevoDy:
-                        send_command('w')
-                        
-                #abajo
-                if accion == 1:
-                    if cx > nuevoDx:
-                        send_command('s')
-                        send_command('d')
-                    elif cx < nuevoDx:
-                        send_command('s')
-                        send_command('a')
-                    elif cy > NuevoDy:
-                        send_command('w')
-                    elif cy < NuevoDy: 
-                        send_command('s')
-                        send_command('d')
-                        
-                #izquierda 
-                if accion ==2:
-                    if cx > nuevoDx:
-                        send_command('s')
-                        send_command('a')
-                        send_command('a')
-                    elif cx < nuevoDx:
-                        send_command('W')
-                    elif cy > NuevoDy:
-                        send_command('s')
-                        send_command('d')
-                        send_command('d')
-                    elif cy < NuevoDy: 
-                        send_command('w')
-                #derecha      
-                if accion ==3:
-                    if cx > nuevoDx:
-                        send_command('W')
-                    elif cx < nuevoDx:
-                        send_command('s')
-                        send_command('a')
-                        send_command('a')
-                    elif cy > NuevoDy:
-                        send_command('s')
-                        send_command('d')
-                        send_command('d')
-                    elif cy < NuevoDy: 
-                        send_command('w')
-        """
         
-def mover_robot(tablaQ, cell_index, x, y,angulo, center_x, center_y, politica_actual, politica_anterior):
+def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y):
     tolerancia=20
     accion = np.argmax(tablaQ[cell_index])
     
     print(f"Acción: {accion}")
     print(f"Ángulo: {angulo}")
     
+    # Definir los ángulos de destino para cada acción
+    angulos_destino = {
+        0: 90,   # Arriba
+        1: 270,  # Abajo
+        2: 180,  # Izquierda
+        3: 0     # Derecha
+    }
+    
+    # Obtener el ángulo destino según la acción
+    angulo_deseado = angulos_destino[accion]
+    print(f"Ángulo deseado: {angulo_deseado}")
+    
+    # Calcular la diferencia mínima entre el ángulo actual y el deseado
+    diferencia = (angulo_deseado - angulo + 360) % 360  # Diferencia positiva en rango [0, 360)
+    
     politica_actual=accion
+    margenX=cell_width*0.3
+    margenY=cell_height*0.3
+    
+    print("margen en x: ",margenX)
+    print("margen en y: ", margenY)
+    print("tamaño en x: ",cell_width)
+    print("tamaño en y: ", cell_height)
+    
     
     if politica_anterior != politica_actual:
+        
         #centrar
-        if ( center_x -50 <= x <= center_x + 50) and (center_y -50 <= y <= center_y + 50):
+        if ( center_x -margenX <= x <= center_x + margenX) and (center_y -margenY <= y <= center_y + margenY):
             politica_anterior=politica_actual
+            
             
         else:
             send_command("w")
+            send_command('w')
             print("calibrando")
     #if (accion == 0 and (angulo <= 90 + tolerancia and angulo >= 90 - tolerancia)) or (accion == 1 and (angulo <= 270 + tolerancia and angulo >= 270 - tolerancia)) or (accion == 2 and (angulo <= 180 + tolerancia and angulo >= 180 - tolerancia)) or (accion == 3 and (angulo <=  tolerancia or angulo >= 360 - tolerancia)):
     
+    elif cell_index == rows*cols-1:
+        print("legoooo")
+        pass
+    
     elif (accion == 0 and (angulo <= 90 + tolerancia and angulo >= 90 - tolerancia)):
+        send_command('w')
         send_command('w')
         print("primer if")
         
     elif  (accion == 1 and (angulo <= 270 + tolerancia and angulo >=270 - tolerancia)):
         send_command('w')
+        send_command('w')
         print("segundo if")
         
     elif (accion == 2 and (angulo <= 180 + tolerancia and angulo >= 180 - tolerancia)):
+        send_command('w')
         send_command('w')
         print("tercero if")
         
     elif (accion == 3 and (angulo <=  tolerancia or angulo >= 360 - tolerancia)):
         send_command('w')
+        send_command('w')
         print("cuarto if")
         
     else:
-        send_command('d')
-        send_command('d')
+        if diferencia > 180:
+            diferencia -= 360  # Convertir a rango [-180, 180] para rotaciones negativas
+        print(f"Diferencia de ángulo: {diferencia}")
+
+        # Si el ángulo actual está alineado dentro de la tolerancia, avanza
+        if abs(diferencia) <= tolerancia:
+            send_command('w')  # Avanzar
+            send_command('w')
+            print("Avanzando hacia la celda")
+        else:
+            # Girar a la dirección más corta
+            if diferencia > 0:
+                send_command('a')  # Girar a la izquierda
+                send_command('a')
+                send_command('a')
+                print("Girando a la izquierda")
+            else:
+                send_command('d')  # Girar a la derecha
+                send_command('d')
+                send_command('d')
+                print("Girando a la derecha")
         
             
     return politica_actual, politica_anterior
@@ -412,8 +393,19 @@ else:
     cv2.createTrackbar('Canny Th2', 'Ajustes', canny_threshold2, 255, on_trackbar_change)
     cv2.createTrackbar('Dilatacion', 'Ajustes', 2, 15, on_trackbar_change)
     maze = maze_generate(rows, cols)
-    #tablaQ=aplicarQlearning(maze)
-
+    # import diferenciaTemporalParcial
+    # environment = np.array([
+    # [0, 0, 3, 0],
+    # [0, 2, 0, 0],
+    # [0, 0, 1, 0],
+    # [0, 0, 0, 4]
+    # ])
+    # q_table_sarsa = diferenciaTemporalParcial.sarsa(100000, environment)
+    # print("Tabla Q final SARSA:",q_table_sarsa)
+    # formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa)
+    # print(maze)
+    # print("Tabla Q (Formato Solicitado):")
+    # print(formatted_q_table)
     print(maze)
     qr_detector = cv2.QRCodeDetector()
     
@@ -435,7 +427,7 @@ else:
         detected_shapes, frame_with_shapes = detect_shapes_in_image(frame, rows, cols, qr_detector)
         #detected_shapes=[{"shape": "triangle","row":1,"col": 0,"cell_index": 3,"x": 100,"y": 100}]
         
-        if contador% 50==0:
+        if contador% 24==0:
             for shape in detected_shapes:
                 # Obtener las coordenadas y llamar a mover_robot
                 cell_index = shape["cell_index"]
@@ -444,7 +436,10 @@ else:
                 center_x= shape["cell_center_x"]
                 center_y= shape["cell_center_y"]
                 angulo = shape["angle"]
-                politica_actual, politica_anterior= mover_robot(probabilidades,cell_index,x,y,angulo,center_x, center_y, politica_actual, politica_anterior)
+                cell_width = shape["cell_width"]
+                cell_height = shape["cell_height"]
+                politica_actual, politica_anterior= mover_robot(probabilidades,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+                #politica_actual, politica_anterior= mover_robot(formatted_q_table,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
         #print(detected_shapes)
         # Dibujar la cuadrícula en el frame
         frame_with_grid = draw_grid(frame_with_shapes, rows, cols, thickness)

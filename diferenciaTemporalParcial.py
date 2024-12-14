@@ -1,248 +1,208 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import random
 
-def mostrar_estado(env, S):
-    '''Imprime en pantalla el estado actual (ubicación del taxi,
-    destino y origen)
+# --- MAPA ESTÁTICO ---
+# Representación del entorno
+# 0: Espacio vacío
+# 1: Posición inicial del ladrón
+# 2: Posición inicial del policía
+# 3: Lava (estado terminal negativo)
+# 4: Salida segura (estado terminal positivo)
 
-    Parámetros:
-    - env: el entorno de OpenAI Gym
-    - S: el estado actual codificado
-    '''
+environment = np.array([
+    [0, 0, 3, 0],
+    [0, 2, 0, 0],
+    [0, 0, 1, 0],
+    [0, 0, 0, 4]
+])
 
-    # Decodificar el estado
-    tx_fil, tx_col, origen, destino = env.env.decode(S)
+def maze_generate(filas, columnas):
+    """
+    Genera un laberinto de dimensiones filas x columnas.
+    Los caminos están representados por 0 y las paredes por 1.
+    Garantiza que (0,0) es el inicio y (filas-1,columnas-1) es la meta con un camino solucionable.
+    """
+    # Crear una matriz llena de paredes (1)
+    laberinto = [[1 for _ in range(columnas)] for _ in range(filas)]
 
-    # Diccionarios
-    origenes = {0: 'R(ed)', 1: 'G(reen)', 2: 'Y(ellow)', 3: 'B(lue)', 4:'In taxi'}
-    destinos = {0: 'R(ed)', 1: 'G(reen)', 2: 'Y(ellow)', 3: 'B(lue)'}
+    # Direcciones de movimiento: (dx, dy) para celdas ortogonales
+    direcciones = [(0, 1), (1, 0), (0, -1), (-1, 0)]
 
-    # Imprimir información en pantalla
-    print(f'Ubicación del taxi (fil, col): {tx_fil+1, tx_col+1}')
-    print(f'Origen: {origenes[origen]}')
-    print(f'Destino: {destinos[destino]}')
+    def en_rango(x, y):
+        """Verifica si una celda está dentro del rango del laberinto."""
+        return 0 <= x < filas and 0 <= y < columnas
 
-# -----------------------------------------------------
-def inicializar_Q(nS, nA, tipo='ones'):
-    '''
-    Inicializar la función Q(S,A) a valores iguales a 1.
+    def dfs(x, y):
+        """Algoritmo DFS para construir el laberinto."""
+        laberinto[x][y] = 0  # Marca el camino actual como "camino"
+        random.shuffle(direcciones)  # Aleatoriza el orden de las direcciones
+        for dx, dy in direcciones:
+            nx, ny = x + 2 * dx, y + 2 * dy  # Saltar una celda para garantizar paredes entre caminos
+            if en_rango(nx, ny) and laberinto[nx][ny] == 1:  # Si es una celda válida y no visitada
+                # Romper la pared entre la celda actual y la siguiente
+                laberinto[x + dx][y + dy] = 0
+                # Continuar el DFS desde la celda siguiente
+                dfs(nx, ny)
 
-    Parámetros:
-    - nS: número de estados
-    - nA: número de acciones
+    # Inicializar el laberinto
+    laberinto[0][0] = 0  # Crear la entrada
+    dfs(0, 0)
 
-    Retorna la matriz Q(S,A)
-    '''
-    if tipo == 'ones':
-        Q = np.ones((nS,nA))
-    elif tipo == 'random':
-        Q = np.random.rand(nS,nA)
+    # Crear la salida
+    laberinto[filas - 1][columnas - 1] = 0  # Asegurar que el punto final sea siempre un camino
 
-    return Q
+    # Conectar la salida al camino más cercano si está aislada
+    if laberinto[filas - 2][columnas - 1] == 1 and laberinto[filas - 1][columnas - 2] == 1:
+        laberinto[filas - 2][columnas - 1] = 0  # Romper la pared superior
 
-# -----------------------------------------------------
-def e_greedy(s, Q, e, nA):
-    '''
-    Para un estado "s" selecciona una acción proveniente de Q(S,A) usando el enfoque e-greedy
+    # Devolver la matriz del laberinto
+    print(laberinto)
+    return laberinto
 
-    Parámetros:
-    - s: el estado para el cual se desea obtener la acción
-    - Q(S,A): tabla Q con S estados y A acciones
-    - e: valor de épsilon (entre 0 y 1)
-    - nA: número de acciones
+def format_q_table(q_table):
+    """
+    Formatea la tabla Q en el formato especificado con valores originales.
 
-    Retorna la acción seleccionada
-    '''
+    Args:
+        q_table (numpy.ndarray): La tabla Q con dimensiones (filas, columnas, acciones).
 
-    if np.random.rand() >= e:
-        # Tomar la mejor acción con una probabilidad 1-e
-        accion = np.argmax(Q[s, :])
+    Returns:
+        str: Una cadena que representa la tabla Q en el formato solicitado.
+    """
+    formatted_output = ""
+    index = 0  # Contador de celdas
+
+    for i in range(q_table.shape[0]):
+        for j in range(q_table.shape[1]):
+            # Obtén los valores originales de las acciones
+            action_values = q_table[i, j]
+
+            # Formatea la salida
+            formatted_output += f"{index}: {list(action_values)}, "
+            index += 1
+
+            # Salto de línea cada 3 celdas (opcional, ajustado al mapa 3x3)
+            if index % q_table.shape[1] == 0:
+                formatted_output = formatted_output.rstrip(", ") + "\n"
+
+    return formatted_output.strip()
+
+
+# --- PARÁMETROS DE ENTRENAMIENTO ---
+actions = ['up', 'down', 'left', 'right']  # Conjunto de acciones posibles
+alpha = 0.1   # Tasa de aprendizaje
+gamma = 0.9   # Factor de descuento
+epsilon = 0.1 # Factor de exploración
+
+def calculate_states(env):
+    """Calcula el número de estados basado en el tamaño del mapa."""
+    return env.shape[0] * env.shape[1]
+
+def initialize_q_table(env):
+    """Inicializa una tabla Q con ceros."""
+    return np.zeros((env.shape[0], env.shape[1], len(actions)))
+
+# --- FUNCIONES AUXILIARES ---
+def get_next_state(state, action, env):
+    """Calcula el siguiente estado basado en la acción."""
+    x, y = state
+    if action == 'up':
+        x = max(0, x - 1)
+    elif action == 'down':
+        x = min(env.shape[0] - 1, x + 1)
+    elif action == 'left':
+        y = max(0, y - 1)
+    elif action == 'right':
+        y = min(env.shape[1] - 1, y + 1)
+    return (x, y)
+
+def get_reward(state, env):
+    """Devuelve la recompensa asociada a un estado."""
+    x, y = state
+    if env[x, y] == 3:  # Lava
+        return -10
+    elif env[x, y] == 4:  # Salida segura
+        return 10
     else:
-        # Tomar cualquier acción aleatoriamente (con probabilidad e)
-        accion = np.random.randint(0, nA)
+        return -1  # Penalización por cada paso
 
-    return accion
-
-# -----------------------------------------------------
-def sarsa(env, alpha, gamma, epsilon, nS, nA, K, verbose=False):
-    '''
-    Algoritmo de control SARSA
-
-    Parámetros:
-    - env: el entorno
-    - alpha: la tasa de aprendizaje (entre 0 y 1)
-    - gamma: factor de descuento (entre 0 y 1)
-    - epsilon: parámetro para el algoritmo e-greedy (entre 0 y 1)
-    - nS, nA: número de estados y de acciones
-    - K: número de episodios a generar
-    - verbose: imprimir en pantalla el progreso del entrenamiento (por defecto falso)
-    '''
-
-    # Inicializar Q(S,A) y almacenar retorno (la evolucion del entrenamiento)
-    Q = inicializar_Q(nS, nA)
-    retorno = []
-
-    # Correr K episodios de interacción y estimar Q(S,A)
-    for episodio in range(K):
-        # Inicializar retorno acumulado
-        retorno_acumulado = 0
-
-        # Ir al primer estado del episodio
-        s = env.reset()
-
-        # Elegir acción usando e-greedy
-        a = e_greedy(s, Q, epsilon, nA)
-
-        done = False # Aún no estamos en un estado terminal
-
-        while not done:
-            # Iniciar interacciones y actualizar función Q
-            s_, r_, done, info = env.step(a)
-            a_ = e_greedy(s_, Q, epsilon, nA)
-            retorno_acumulado += r_
-
-            if not done:
-                # Actualizar Q si no es un episodio terminal
-                Q[s, a] += alpha * ( r_ + (gamma * Q[s_, a_] ) - Q[s, a] )
-            else:
-                # Si el episodio es terminal no se añade gamma * Q[S_, a_]
-                # (porque Q[s_, a_] = 0 por ser estado terminal)
-                Q[s, a] += alpha * ( r_ - Q[s, a] )
-                retorno.append(retorno_acumulado)
-
-            # Actualizar el estado y la acción
-            s, a = s_, a_
-
-            # Imprimir información cada 100 episodios
-            if verbose:
-                if episodio%100 == 0:
-                    print(f'Episodio: {episodio+1}/{K}:')
-                    print(f'\t\tRecompensa: {r_}')
-
-
-    # Al finalizar tendremos la tabla Q, que implícitamente
-    # contendrá la política
-    return Q, retorno
-
-# -----------------------------------------------------
-def qlearning(env, alpha, gamma, epsilon, nS, nA, K, verbose=False):
-    '''
-    Algoritmo de control Q-learning
-
-    Parámetros:
-    - env: el entorno
-    - alpha: la tasa de aprendizaje (entre 0 y 1)
-    - gamma: factor de descuento (entre 0 y 1)
-    - epsilon: parámetro para el algoritmo e-greedy
-    - nS, nA: número de estados y de acciones
-    - K: número de episodios a generar
-    - verbose: imprimir en pantalla el progreso del entrenamiento (por defecto falso)
-    '''
-
-    # Inicializar Q(S,A) y almacenar retorno (la evolución del entrenamiento)
-    Q = inicializar_Q(nS, nA)
-    retorno = []
-
-    # Correr K episodios de interacción y estimar Q(S,A)
-    for episodio in range(K):
-        # Inicializar retorno total
-        retorno_acumulado = 0
-
-        # Ir al primer estado del episodio
-        s = env.reset()
-
-        # Elegir acción usando e-greedy
-        a = e_greedy(s, Q, epsilon, nA)
-
-        done = False # Aún no estamos en un estado terminal
-
-        while not done:
-            # Iniciar interacciones y actualizar función Q
-            s_, r_, done, info = env.step(a)
-            a_ = np.argmax(Q[s_, :]) # <---- ESTA ES LA DIFERENCIA CON SARSA
-            retorno_acumulado += r_
-
-            if not done:
-                # Si no es un episodio terminal, actualizar Q
-                Q[s, a] += alpha * ( r_ + (gamma * Q[s_, a_] ) - Q[s, a] )
-            else:
-                # Si el episodio es terminal no se añade gamma * Q[S_, a_]
-                # (porque Q[s_, a_] = 0 por ser estado terminal)
-                Q[s, a] += alpha * ( r_ - Q[s, a] )
-                retorno.append(retorno_acumulado)
-
-            # Actualizar el estado y la acción
-            s, a = s_, a_
-
-            # Imprimir información cada 100 episodios
-            if verbose:
-                if episodio%100 == 0:
-                    print(f'Episodio: {episodio+1}/{K}:')
-                    print(f'\t\tRecompensa final: {r_}')
-
-
-    # Al finalizar tendremos la tabla Q, que implícitamente
-    # contendrá la política
-    return Q, retorno
-
-# -----------------------------------------------------
-def interaccion(env, Q, method=None):
-    it = 0
-    s = env.reset()
-
-    print('Resultado de la interacción:')
-    print('-'*60)
-    print('-'*60)
-
-    # Imprimir estado y entorno iniciales
-    print('**** Entorno-agente al inicio: ****')
-    env.render()
-    _, _, _, dest_i = env.env.decode(s)
-    mostrar_estado(env, s)
-
-    print('\nInteractuando...\n')
-
-    # Hacer que el agente interactúe con el entorno tomando como política
-    # el máximo de la función Q para cada estado
-    a = np.argmax(Q[s,:]) # ¡La política!
-    done = False
-
-    # Interactuar hasta llegar a un estado terminal
-    while not done:
-        it += 1
-        # Iniciar interacciones y actualizar función Q
-        s, r, done, info = env.step(a)
-        a = np.argmax(Q[s, :])
-
-    # Imprimir información final
-    _, _, _, dest_f = env.env.decode(s)
-    if dest_i == dest_f:
-        print(f'\nEl episodio culminó ***EXITOSAMENTE*** en {it} iteraciones')
+def choose_action(q_table, state, epsilon):
+    """Elige una acción usando epsilon-greedy."""
+    if random.uniform(0, 1) < epsilon:
+        return random.choice(range(len(actions)))  # Explorar
     else:
-        print(f'\nEl episodio culminó en {it} iteraciones')
+        x, y = state
+        return np.argmax(q_table[x, y])  # Explotar
 
-    print('**** Entorno-agente al final: ****')
-    env.render()
-    mostrar_estado(env, s)
-    print(f'Recompensa obtenida: {r}')
+# --- ALGORITMO SARSA ---
+def sarsa(num_episodes, env):
+    q_table = initialize_q_table(env)
+    for episode in range(num_episodes):
+        state = (2, 2)  # Posición inicial del ladrón
+        action = choose_action(q_table, state, epsilon)
 
-# -----------------------------------------------------
-def graficar_entrenamiento(retornos, titulos):
+        while True:
+            next_state = get_next_state(state, actions[action], env)
+            reward = get_reward(next_state, env)
+            next_action = choose_action(q_table, next_state, epsilon)
 
-    # Generar figura
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10, 6),
-    	sharex=True, sharey=True)
+            x, y = state
+            nx, ny = next_state
 
-    # Graficar
-    ax1.plot(retornos[0])
-    ax1.title.set_text(titulos[0])
-    ax2.plot(retornos[1], 'tab:orange')
-    ax2.title.set_text(titulos[1])
-    ax3.plot(retornos[2], 'tab:green')
-    ax3.title.set_text(titulos[2])
-    ax4.plot(retornos[3], 'tab:red')
-    ax4.title.set_text(titulos[3])
+            # Actualización SARSA
+            q_table[x, y, action] += alpha * (
+                reward + gamma * q_table[nx, ny, next_action] - q_table[x, y, action]
+            )
 
-    # Etiquetar ejes
-    plt.setp([ax3, ax4], xlabel='Iteración')
-    plt.setp([ax1, ax3], ylabel='Retorno')
+            state, action = next_state, next_action
+
+            if env[state] in [3, 4]:  # Estado terminal
+                break
+    return q_table
+
+# --- ALGORITMO Q-LEARNING ---
+def q_learning(num_episodes, env):
+    q_table = initialize_q_table(env)
+    for episode in range(num_episodes):
+        state = (2, 2)  # Posición inicial del ladrón
+
+        while True:
+            action = choose_action(q_table, state, epsilon)
+            next_state = get_next_state(state, actions[action], env)
+            reward = get_reward(next_state, env)
+
+            x, y = state
+            nx, ny = next_state
+
+            # Actualización Q-Learning
+            q_table[x, y, action] += alpha * (
+                reward + gamma * np.max(q_table[nx, ny]) - q_table[x, y, action]
+            )
+
+            state = next_state
+
+            if env[state] in [3, 4]:  # Estado terminal
+                break
+    return q_table
+
+# --- EJECUCIÓN Y VISUALIZACIÓN ---
+# rows=3
+# cols=3
+# num_episodes = 100000
+# #environment=np.array(maze_generate(rows, cols))
+
+# num_states = calculate_states(environment)
+# print(f"Número de estados: {num_states}")
+
+# q_table_sarsa = sarsa(num_episodes, environment)
+# #q_table_qlearning = q_learning(num_episodes, environment)
+
+# print("\nTabla Q (SARSA):")
+# print(q_table_sarsa)
+
+# #print("\nTabla Q (Q-Learning):")
+# #print(q_table_qlearning)
+
+# formatted_q_table = format_q_table(q_table_sarsa)
+# print("Tabla Q (Formato Solicitado):")
+# print(formatted_q_table)
