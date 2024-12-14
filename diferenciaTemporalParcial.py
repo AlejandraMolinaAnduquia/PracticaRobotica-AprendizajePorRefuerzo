@@ -9,12 +9,12 @@ import random
 # 3: Lava (estado terminal negativo)
 # 4: Salida segura (estado terminal positivo)
 
-environment = np.array([
-    [0, 0, 3, 0],
-    [0, 2, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 4]
-])
+# environment = np.array([
+#     [0, 0, 3, 0],
+#     [0, 2, 0, 0],
+#     [0, 0, 1, 0],
+#     [0, 0, 0, 4]
+# ])
 
 def maze_generate(filas, columnas):
     """
@@ -61,31 +61,29 @@ def maze_generate(filas, columnas):
 
 def format_q_table(q_table):
     """
-    Formatea la tabla Q en el formato especificado con valores originales.
+    Formatea la tabla Q en un diccionario.
 
     Args:
         q_table (numpy.ndarray): La tabla Q con dimensiones (filas, columnas, acciones).
 
     Returns:
-        str: Una cadena que representa la tabla Q en el formato solicitado.
+        dict: Un diccionario que representa la tabla Q en el formato solicitado.
     """
-    formatted_output = ""
+    formatted_dict = {}
     index = 0  # Contador de celdas
 
     for i in range(q_table.shape[0]):
         for j in range(q_table.shape[1]):
-            # Obtén los valores originales de las acciones
-            action_values = q_table[i, j]
+            # Obtén la acción con el valor máximo y construye la lista binaria
+            max_action = np.argmax(q_table[i, j])
+            action_list = [1 if k == max_action else 0 for k in range(q_table.shape[2])]
 
-            # Formatea la salida
-            formatted_output += f"{index}: {list(action_values)}, "
+            # Agrega al diccionario con el índice de celda como clave
+            formatted_dict[index] = action_list
             index += 1
 
-            # Salto de línea cada 3 celdas (opcional, ajustado al mapa 3x3)
-            if index % q_table.shape[1] == 0:
-                formatted_output = formatted_output.rstrip(", ") + "\n"
+    return formatted_dict
 
-    return formatted_output.strip()
 
 
 # --- PARÁMETROS DE ENTRENAMIENTO ---
@@ -107,9 +105,10 @@ def get_next_state(state, action, env):
     """Calcula el siguiente estado basado en la acción."""
     x, y = state
     if action == 'up':
-        x = max(0, x - 1)
-    elif action == 'down':
+        
         x = min(env.shape[0] - 1, x + 1)
+    elif action == 'down':
+        x = max(0, x - 1)
     elif action == 'left':
         y = max(0, y - 1)
     elif action == 'right':

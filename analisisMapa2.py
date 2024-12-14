@@ -282,6 +282,9 @@ def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politi
     print(f"Acción: {accion}")
     print(f"Ángulo: {angulo}")
     
+    print("politica")
+    print(tablaQ)
+    
     # Definir los ángulos de destino para cada acción
     angulos_destino = {
         0: 90,   # Arriba
@@ -371,6 +374,26 @@ def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politi
     return politica_actual, politica_anterior
     
 
+def policiasLadrones(numero):
+    import diferenciaTemporalParcial
+    #funcion de crear maoa en diferenciaTemporoalParcial que cree el mapa con las posiciones de:  0: Espacio vacío (camino)
+    # 1: Posición inicial del ladrón
+    # 2: Posición inicial del policía, 3: Lava (estado terminal negativo), 
+    # 4: Salida segura (estado terminal positivo)(siempre la ultima casilla)
+    environment = np.array([
+    [0, 0, 3, 0],
+    [0, 2, 0, 0],
+    [0, 0, 1, 0],
+    [0, 0, 0, 4]
+    ])
+    q_table_sarsa = diferenciaTemporalParcial.sarsa(numero, environment)
+    print("Tabla Q final SARSA:",q_table_sarsa)
+    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa)
+    print("Tabla Q (Formato Solicitado):")
+    print(formatted_q_table)
+    return formatted_q_table
+
+
 probabilidades = {
     #Arriba, abajo, izquierda, derecha
     0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
@@ -378,6 +401,12 @@ probabilidades = {
     6: [0, 0, 0, 1], 7: [0, 0, 0, 1], 8: [0, 0, 0, 0]
 }
 
+# probabilidades = {
+#     #Arriba, abajo, izquierda, derecha
+#     0: [0, 0, 0, 1], 1: [0, 1, 0, 0], 2: [0, 0, 0, 0],
+#     3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
+#     6: [0, 0, 0, 1], 7: [0, 1, 0, 0], 8: [0, 0, 0, 1], 9: [0, 0, 0, 1], 10: [0, 0, 0, 1], 11: [0, 1, 0, 0], 12: [0, 0, 0, 1], 13: [0, 0, 0, 1], 14: [0, 0, 0, 1], 15: [0, 0, 0, 0]
+# }
 
 # Abre el video desde la URL
 cap = cv2.VideoCapture(url)
@@ -393,19 +422,7 @@ else:
     cv2.createTrackbar('Canny Th2', 'Ajustes', canny_threshold2, 255, on_trackbar_change)
     cv2.createTrackbar('Dilatacion', 'Ajustes', 2, 15, on_trackbar_change)
     maze = maze_generate(rows, cols)
-    # import diferenciaTemporalParcial
-    # environment = np.array([
-    # [0, 0, 3, 0],
-    # [0, 2, 0, 0],
-    # [0, 0, 1, 0],
-    # [0, 0, 0, 4]
-    # ])
-    # q_table_sarsa = diferenciaTemporalParcial.sarsa(100000, environment)
-    # print("Tabla Q final SARSA:",q_table_sarsa)
-    # formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa)
-    # print(maze)
-    # print("Tabla Q (Formato Solicitado):")
-    # print(formatted_q_table)
+    
     print(maze)
     qr_detector = cv2.QRCodeDetector()
     
@@ -427,7 +444,7 @@ else:
         detected_shapes, frame_with_shapes = detect_shapes_in_image(frame, rows, cols, qr_detector)
         #detected_shapes=[{"shape": "triangle","row":1,"col": 0,"cell_index": 3,"x": 100,"y": 100}]
         
-        if contador% 24==0:
+        if contador% 50==0:
             for shape in detected_shapes:
                 # Obtener las coordenadas y llamar a mover_robot
                 cell_index = shape["cell_index"]
@@ -439,7 +456,8 @@ else:
                 cell_width = shape["cell_width"]
                 cell_height = shape["cell_height"]
                 politica_actual, politica_anterior= mover_robot(probabilidades,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
-                #politica_actual, politica_anterior= mover_robot(formatted_q_table,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+                
+                #politica_actual, politica_anterior= mover_robot(policiasLadrones(1000000),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
         #print(detected_shapes)
         # Dibujar la cuadrícula en el frame
         frame_with_grid = draw_grid(frame_with_shapes, rows, cols, thickness)
