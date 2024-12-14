@@ -8,8 +8,8 @@ from comunicacionArduino import send_command
 url = "http://192.168.43.49:4747/video"
 
 # Parámetros de la cuadrícula
-rows = 3  # Número de filas
-cols = 3  # Número de columnas
+rows = 4  # Número de filas
+cols = 4  # Número de columnas
 thickness = 1  # Grosor de las líneas
 
 # Valores iniciales de Canny
@@ -373,23 +373,37 @@ def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politi
             
     return politica_actual, politica_anterior
     
+environment = np.array([
+[0, 0, 3, 0],
+[0, 2, 0, 0],
+[0, 0, 1, 0],
+[0, 0, 0, 4]
+])
 
-def policiasLadrones(numero):
+def policiasLadronesSARSA(numero):
     import diferenciaTemporalParcial
     #funcion de crear maoa en diferenciaTemporoalParcial que cree el mapa con las posiciones de:  0: Espacio vacío (camino)
     # 1: Posición inicial del ladrón
     # 2: Posición inicial del policía, 3: Lava (estado terminal negativo), 
     # 4: Salida segura (estado terminal positivo)(siempre la ultima casilla)
-    environment = np.array([
-    [0, 0, 3, 0],
-    [0, 2, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 4]
-    ])
+
     q_table_sarsa = diferenciaTemporalParcial.sarsa(numero, environment)
     print("Tabla Q final SARSA:",q_table_sarsa)
     formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa)
     print("Tabla Q (Formato Solicitado):")
+    print(formatted_q_table)
+    return formatted_q_table
+
+def policiasLadronesLearning(numero):
+    import diferenciaTemporalParcial
+    #funcion de crear maoa en diferenciaTemporoalParcial que cree el mapa con las posiciones de:  0: Espacio vacío (camino)
+    # 1: Posición inicial del ladrón
+    # 2: Posición inicial del policía, 3: Lava (estado terminal negativo), 
+    # 4: Salida segura (estado terminal positivo)(siempre la ultima casilla)
+    q_table_learning = diferenciaTemporalParcial.q_learning(numero, environment)
+    print("Tabla Q final Learning:",q_table_learning)
+    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_learning)
+    print("Tabla Q_learning:")
     print(formatted_q_table)
     return formatted_q_table
 
@@ -409,8 +423,8 @@ probabilidades = {
 # }
 
 # Abre el video desde la URL
-cap = cv2.VideoCapture(url)
-#cap = cv2.VideoCapture(0)
+#cap = cv2.VideoCapture(url)
+cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("No se pudo conectar a la cámara en la URL proporcionada.")
 else:
@@ -456,8 +470,9 @@ else:
                 cell_width = shape["cell_width"]
                 cell_height = shape["cell_height"]
                 politica_actual, politica_anterior= mover_robot(probabilidades,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
-                
-                #politica_actual, politica_anterior= mover_robot(policiasLadrones(1000000),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+                # num=1000000
+                # politica_actual, politica_anterior= mover_robot(policiasLadronesSARSA(num),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+                # politica_actual, politica_anterior= mover_robot(policiasLadronesLearning(num),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
         #print(detected_shapes)
         # Dibujar la cuadrícula en el frame
         frame_with_grid = draw_grid(frame_with_shapes, rows, cols, thickness)

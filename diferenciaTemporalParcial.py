@@ -9,12 +9,12 @@ import random
 # 3: Lava (estado terminal negativo)
 # 4: Salida segura (estado terminal positivo)
 
-# environment = np.array([
-#     [0, 0, 3, 0],
-#     [0, 2, 0, 0],
-#     [0, 0, 1, 0],
-#     [0, 0, 0, 4]
-# ])
+environment = np.array([
+    [0, 0, 3, 0],
+    [0, 2, 0, 0],
+    [0, 0, 1, 0],
+    [0, 0, 0, 4]
+])
 
 def maze_generate(filas, columnas):
     """
@@ -105,10 +105,9 @@ def get_next_state(state, action, env):
     """Calcula el siguiente estado basado en la acción."""
     x, y = state
     if action == 'up':
-        
-        x = min(env.shape[0] - 1, x + 1)
-    elif action == 'down':
         x = max(0, x - 1)
+    elif action == 'down':
+        x = min(env.shape[0] - 1, x + 1)
     elif action == 'left':
         y = max(0, y - 1)
     elif action == 'right':
@@ -187,21 +186,24 @@ def q_learning(num_episodes, env):
 # --- EJECUCIÓN Y VISUALIZACIÓN ---
 # rows=3
 # cols=3
-# num_episodes = 100000
-# #environment=np.array(maze_generate(rows, cols))
+num_episodes = 1000000
 
-# num_states = calculate_states(environment)
-# print(f"Número de estados: {num_states}")
+num_states = calculate_states(environment)
+print(f"Número de estados: {num_states}")
 
-# q_table_sarsa = sarsa(num_episodes, environment)
-# #q_table_qlearning = q_learning(num_episodes, environment)
+q_table_sarsa = sarsa(num_episodes, environment)
+q_table_qlearning = q_learning(num_episodes, environment)
 
-# print("\nTabla Q (SARSA):")
-# print(q_table_sarsa)
+print("\nTabla Q (SARSA):")
+print(q_table_sarsa)
 
-# #print("\nTabla Q (Q-Learning):")
-# #print(q_table_qlearning)
+print("\nTabla Q (Q-Learning):")
+print(q_table_qlearning)
 
-# formatted_q_table = format_q_table(q_table_sarsa)
-# print("Tabla Q (Formato Solicitado):")
-# print(formatted_q_table)
+formatted_q_table = format_q_table(q_table_sarsa)
+print("Tabla Q (Formato Solicitado):")
+print(formatted_q_table)
+
+formatted_q_tableLearning = format_q_table(q_table_qlearning)
+print("Tabla Q (Formato Solicitado):")
+print(formatted_q_tableLearning)
