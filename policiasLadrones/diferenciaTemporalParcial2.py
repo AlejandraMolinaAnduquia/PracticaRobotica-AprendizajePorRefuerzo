@@ -7,13 +7,11 @@ gamma = 0.9   # Factor de descuento
 epsilon = 0.1 # Factor de exploración
 
 # Matriz del terreno: 0 = camino, 1 = obstáculo (roca), la última casilla es la meta
-# entorno = np.array([
-#     [0, 1, 0],
-#     [0, 1, 0],
-#     [0, 0, 0],  # La última casilla es la meta
-# ])
-#entorno[-1, -1] = 2  # Definir la meta en la última casilla
+# entorno = np.array([[0,0,0,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]])
+# entorno[-1, -1] = 2  # Definir la meta en la última casilla
 
+
+# print(entorno)
 # Recompensas asociadas a cada tipo de casilla
 recompensas = {
     0: -1,    # Camino
@@ -26,15 +24,20 @@ actions = ['up', 'down', 'left', 'right']
 
 def initialize_q_table(env):
     """Inicializa una tabla Q con ceros."""
-    return np.zeros((env.shape[0], env.shape[1], len(actions)))
+    return np.zeros((env.shape[0] * env.shape[1], len(actions)))
 
-def choose_action(q_table, state, epsilon):
+def state_to_index(state, env):
+    """Convierte un estado (x, y) en un índice lineal para la tabla Q."""
+    x, y = state
+    return x * env.shape[1] + y
+
+def choose_action(q_table, state, epsilon, env):
     """Elige una acción usando epsilon-greedy."""
+    state_index = state_to_index(state, env)
     if random.uniform(0, 1) < epsilon:
         return random.choice(range(len(actions)))  # Explorar
     else:
-        x, y = state
-        return np.argmax(q_table[x, y])  # Explotar
+        return np.argmax(q_table[state_index])  # Explotar
 
 def get_next_state(state, action, env):
     """Calcula el siguiente estado basado en la acción."""
@@ -59,24 +62,23 @@ def is_terminal(state, env):
     x, y = state
     return env[x, y] == 2
 
-
 def sarsa(num_episodes, env):
     q_table = initialize_q_table(env)
     for episode in range(num_episodes):
         state = (2, 2)  # Posición inicial del ladrón
-        action = choose_action(q_table, state, epsilon)
+        action = choose_action(q_table, state, epsilon, env)
 
         while True:
-            next_state = get_next_state(state, actions[action], env)
+            state_index = state_to_index(state, env)
+            next_state = get_next_state(state, action, env)
             reward = get_reward(next_state, env)
-            next_action = choose_action(q_table, next_state, epsilon)
+            next_action = choose_action(q_table, next_state, epsilon, env)
 
-            x, y = state
-            nx, ny = next_state
+            next_state_index = state_to_index(next_state, env)
 
             # Actualización SARSA
-            q_table[x, y, action] += alpha * (
-                reward + gamma * q_table[nx, ny, next_action] - q_table[x, y, action]
+            q_table[state_index, action] += alpha * (
+                reward + gamma * q_table[next_state_index, next_action] - q_table[state_index, action]
             )
 
             state, action = next_state, next_action
@@ -93,31 +95,32 @@ def q_learning(num_episodes, env):
         state = (0, 0)  # Estado inicial
 
         while not is_terminal(state, env):
-            action = choose_action(q_table, state, epsilon)
+            state_index = state_to_index(state, env)
+            action = choose_action(q_table, state, epsilon, env)
             next_state = get_next_state(state, action, env)
             reward = get_reward(next_state, env)
 
-            x, y = state
-            nx, ny = next_state
+            next_state_index = state_to_index(next_state, env)
 
             # Actualización de Q-Learning
-            q_table[x, y, action] += alpha * (
-                reward + gamma * np.max(q_table[nx, ny]) - q_table[x, y, action]
+            q_table[state_index, action] += alpha * (
+                reward + gamma * np.max(q_table[next_state_index]) - q_table[state_index, action]
             )
 
             state = next_state
 
     return q_table
 
-def format_q_table(q_table):
+def format_q_table(q_table, env):
     formatted_dict = {}
     index = 0  # Contador de celdas
 
-    for i in range(q_table.shape[0]):
-        for j in range(q_table.shape[1]):
+    for i in range(env.shape[0]):
+        for j in range(env.shape[1]):
+            state_index = state_to_index((i, j), env)
             # Obtén la acción con el valor máximo y construye la lista binaria
-            max_action = np.argmax(q_table[i, j])
-            action_list = [1 if k == max_action else 0 for k in range(q_table.shape[2])]
+            max_action = np.argmax(q_table[state_index])
+            action_list = [1 if k == max_action else 0 for k in range(len(actions))]
 
             # Agrega al diccionario con el índice de celda como clave
             formatted_dict[index] = action_list
@@ -125,17 +128,16 @@ def format_q_table(q_table):
 
     return formatted_dict
 
-
 # Ejecución del algoritmo
 # num_episodes = 1000
 # q_tableQLearning = q_learning(num_episodes, entorno)
-# q_tableSarsa =sarsa(num_episodes, entorno)
+# q_tableSarsa = sarsa(num_episodes, entorno)
 
 # # Mostrar resultados
 # print("\nTabla Q Q_Learning:")
-# Q_learning = format_q_table(q_tableQLearning)
+# Q_learning = format_q_table(q_tableQLearning, entorno)
 # print(Q_learning)
-# # Mostrar resultados
+
 # print("\nTabla Q final Sarsa:")
-# Sarsa = format_q_table(q_tableSarsa)
+# Sarsa = format_q_table(q_tableSarsa, entorno)
 # print(Sarsa)

@@ -6,7 +6,7 @@ import requests
 import time
 import diferenciaTemporalParcial2
 
-from comunicacionArduino import send_command
+from comunicacionArduino2 import send_command
 
 # URL del servidor
 SERVER_URL = "http://127.0.0.1:5000"  # Cambia la IP si es necesario
@@ -165,13 +165,16 @@ def policiasLadronesSARSA(numero):
     global maze
     # Convertir maze en un array de NumPy
     maze_np = np.array(maze)
-    
+    if not isinstance(maze_np, np.ndarray):
+        raise ValueError("El laberinto no es una matriz de NumPy")
     # Definir la meta en la última casilla
-    maze_np[-1, -1] = 2
     print("Mapa:",maze)
+    print("matriz?",isinstance(maze_np, np.ndarray))
+    maze_np[-1, -1] = 2
+    print("matriz",maze_np)
     q_table_sarsa = diferenciaTemporalParcial2.sarsa(numero, maze_np)
     print("Tabla Q final SARSA:",q_table_sarsa)
-    formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_sarsa)
+    formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_sarsa,maze_np)
     print("Tabla Q (Formato Solicitado):")
     print(formatted_q_table)
     return formatted_q_table
@@ -190,7 +193,7 @@ def policiasLadronesLearning(numero):
     maze_np[-1, -1] = 2
     q_table_learning = diferenciaTemporalParcial2.q_learning(numero, maze_np)
     print("Tabla Q final Learning:",q_table_learning)
-    formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_learning)
+    formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_learning,maze_np)
     print("Tabla Q_learning:")
     print(formatted_q_table)
     return formatted_q_table
@@ -215,7 +218,7 @@ def get_detect_shapes():
         print(f"Error de conexión: {e}")
         return []
 
-
+politica= policiasLadronesLearning(1000)
 
 # Lógica principal
 contador = 0
@@ -250,9 +253,9 @@ while True:
             rol = shape["role"]
 
             # Lógica para mover el robot usando SARSA y Q-Learning
-            num = 10  # Número de episodios
+            num = 1000  # Número de episodios
             politica_actual, politica_anterior = mover_robot(
-                policiasLadronesSARSA(num), cell_index, x, y, angulo,
+                politica, cell_index, x, y, angulo,
                 cell_width, cell_height, politica_actual, politica_anterior,
                 center_x, center_y
             )
