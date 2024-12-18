@@ -1,82 +1,126 @@
 import numpy as np
 import random
 
-# --- MAPA ESTÁTICO ---
-# Representación del entorno
-# 0: Espacio vacío
-# 1: Posición inicial del ladrón
-# 2: Posición inicial del policía
-# 3: Lava (estado terminal negativo)
-# 4: Salida segura (estado terminal positivo)
+# Parámetros globales
+alpha = 0.1   # Tasa de aprendizaje
+gamma = 0.9   # Factor de descuento
+epsilon = 0.1 # Factor de exploración
 
-environment = np.array([
-    [0, 0, 3, 0],
-    [0, 2, 0, 0],
-    [0, 0, 1, 0],
-    [0, 0, 0, 4]
-])
+# # Matriz del terreno: 0 = camino, 1 = obstáculo (roca), la última casilla es la meta
+# entorno = np.array([[0,0,0,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]])
+# entorno[-1, -1] = 2  # Definir la meta en la última casilla
 
-def maze_generate(filas, columnas):
-    """
-    Genera un laberinto de dimensiones filas x columnas.
-    Los caminos están representados por 0 y las paredes por 1.
-    Garantiza que (0,0) es el inicio y (filas-1,columnas-1) es la meta con un camino solucionable.
-    """
-    # Crear una matriz llena de paredes (1)
-    laberinto = [[1 for _ in range(columnas)] for _ in range(filas)]
 
-    # Direcciones de movimiento: (dx, dy) para celdas ortogonales
-    direcciones = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+#print(entorno)
+# Recompensas asociadas a cada tipo de casilla
+recompensas = {
+    0: -1,    # Camino
+    1: -100,  # Obstáculo (no transitable)
+    2: 100    # Meta
+}
 
-    def en_rango(x, y):
-        """Verifica si una celda está dentro del rango del laberinto."""
-        return 0 <= x < filas and 0 <= y < columnas
+# Acciones posibles
+actions = ['up', 'down', 'left', 'right']
 
-    def dfs(x, y):
-        """Algoritmo DFS para construir el laberinto."""
-        laberinto[x][y] = 0  # Marca el camino actual como "camino"
-        random.shuffle(direcciones)  # Aleatoriza el orden de las direcciones
-        for dx, dy in direcciones:
-            nx, ny = x + 2 * dx, y + 2 * dy  # Saltar una celda para garantizar paredes entre caminos
-            if en_rango(nx, ny) and laberinto[nx][ny] == 1:  # Si es una celda válida y no visitada
-                # Romper la pared entre la celda actual y la siguiente
-                laberinto[x + dx][y + dy] = 0
-                # Continuar el DFS desde la celda siguiente
-                dfs(nx, ny)
+def initialize_q_table(env):
+    """Inicializa una tabla Q con ceros."""
+    return np.zeros((env.shape[0] * env.shape[1], len(actions)))
 
-    # Inicializar el laberinto
-    laberinto[0][0] = 0  # Crear la entrada
-    dfs(0, 0)
+def state_to_index(state, env):
+    """Convierte un estado (x, y) en un índice lineal para la tabla Q."""
+    x, y = state
+    return x * env.shape[1] + y
 
-    # Crear la salida
-    laberinto[filas - 1][columnas - 1] = 0  # Asegurar que el punto final sea siempre un camino
+def choose_action(q_table, state, epsilon, env):
+    """Elige una acción usando epsilon-greedy."""
+    state_index = state_to_index(state, env)
+    if random.uniform(0, 1) < epsilon:
+        return random.choice(range(len(actions)))  # Explorar
+    else:
+        return np.argmax(q_table[state_index])  # Explotar
 
-    # Conectar la salida al camino más cercano si está aislada
-    if laberinto[filas - 2][columnas - 1] == 1 and laberinto[filas - 1][columnas - 2] == 1:
-        laberinto[filas - 2][columnas - 1] = 0  # Romper la pared superior
+def get_next_state(state, action, env):
+    """Calcula el siguiente estado basado en la acción."""
+    x, y = state
+    if action == 0:  # up
+        x = max(0, x - 1)
+    elif action == 1:  # down
+        x = min(env.shape[0] - 1, x + 1)
+    elif action == 2:  # left
+        y = max(0, y - 1)
+    elif action == 3:  # right
+        y = min(env.shape[1] - 1, y + 1)
+    return (x, y)
 
-    # Devolver la matriz del laberinto
-    print(laberinto)
-    return laberinto
+def get_reward(state, env):
+    """Devuelve la recompensa asociada a un estado."""
+    x, y = state
+    return recompensas[env[x, y]]
 
-def format_q_table(q_table):
-    """
-    Formatea la tabla Q en un diccionario.
+def is_terminal(state, env):
+    """Verifica si el estado es terminal (meta)."""
+    x, y = state
+    return env[x, y] == 2
 
-    Args:
-        q_table (numpy.ndarray): La tabla Q con dimensiones (filas, columnas, acciones).
+def sarsa(num_episodes, env):
+    q_table = initialize_q_table(env)
+    for episode in range(num_episodes):
+        state = (2, 2)  # Posición inicial del ladrón
+        action = choose_action(q_table, state, epsilon, env)
 
-    Returns:
-        dict: Un diccionario que representa la tabla Q en el formato solicitado.
-    """
+        while True:
+            state_index = state_to_index(state, env)
+            next_state = get_next_state(state, action, env)
+            reward = get_reward(next_state, env)
+            next_action = choose_action(q_table, next_state, epsilon, env)
+
+            next_state_index = state_to_index(next_state, env)
+
+            # Actualización SARSA
+            q_table[state_index, action] += alpha * (
+                reward + gamma * q_table[next_state_index, next_action] - q_table[state_index, action]
+            )
+
+            state, action = next_state, next_action
+
+            if is_terminal(state, env):  
+                break
+    return q_table
+
+def q_learning(num_episodes, env):
+    """Implementación del algoritmo Q-Learning."""
+    q_table = initialize_q_table(env)
+
+    for episode in range(num_episodes):
+        state = (0, 0)  # Estado inicial
+
+        while not is_terminal(state, env):
+            state_index = state_to_index(state, env)
+            action = choose_action(q_table, state, epsilon, env)
+            next_state = get_next_state(state, action, env)
+            reward = get_reward(next_state, env)
+
+            next_state_index = state_to_index(next_state, env)
+
+            # Actualización de Q-Learning
+            q_table[state_index, action] += alpha * (
+                reward + gamma * np.max(q_table[next_state_index]) - q_table[state_index, action]
+            )
+
+            state = next_state
+
+    return q_table
+
+def format_q_table(q_table, env):
     formatted_dict = {}
     index = 0  # Contador de celdas
 
-    for i in range(q_table.shape[0]):
-        for j in range(q_table.shape[1]):
+    for i in range(env.shape[0]):
+        for j in range(env.shape[1]):
+            state_index = state_to_index((i, j), env)
             # Obtén la acción con el valor máximo y construye la lista binaria
-            max_action = np.argmax(q_table[i, j])
-            action_list = [1 if k == max_action else 0 for k in range(q_table.shape[2])]
+            max_action = np.argmax(q_table[state_index])
+            action_list = [1 if k == max_action else 0 for k in range(len(actions))]
 
             # Agrega al diccionario con el índice de celda como clave
             formatted_dict[index] = action_list
@@ -84,126 +128,16 @@ def format_q_table(q_table):
 
     return formatted_dict
 
+# # Ejecución del algoritmo
+# num_episodes = 1000
+# q_tableQLearning = q_learning(num_episodes, entorno)
+# q_tableSarsa = sarsa(num_episodes, entorno)
 
+# # Mostrar resultados
+# print("\nTabla Q Q_Learning:")
+# Q_learning = format_q_table(q_tableQLearning, entorno)
+# print(Q_learning)
 
-# --- PARÁMETROS DE ENTRENAMIENTO ---
-actions = ['up', 'down', 'left', 'right']  # Conjunto de acciones posibles
-alpha = 0.1   # Tasa de aprendizaje
-gamma = 0.9   # Factor de descuento
-epsilon = 0.1 # Factor de exploración
-
-def calculate_states(env):
-    """Calcula el número de estados basado en el tamaño del mapa."""
-    return env.shape[0] * env.shape[1]
-
-def initialize_q_table(env):
-    """Inicializa una tabla Q con ceros."""
-    return np.zeros((env.shape[0], env.shape[1], len(actions)))
-
-# --- FUNCIONES AUXILIARES ---
-def get_next_state(state, action, env):
-    """Calcula el siguiente estado basado en la acción."""
-    x, y = state
-    if action == 'up':
-        x = max(0, x - 1)
-    elif action == 'down':
-        x = min(env.shape[0] - 1, x + 1)
-    elif action == 'left':
-        y = max(0, y - 1)
-    elif action == 'right':
-        y = min(env.shape[1] - 1, y + 1)
-    return (x, y)
-
-def get_reward(state, env):
-    """Devuelve la recompensa asociada a un estado."""
-    x, y = state
-    if env[x, y] == 3:  # Lava
-        return -10
-    elif env[x, y] == 4:  # Salida segura
-        return 10
-    else:
-        return -1  # Penalización por cada paso
-
-def choose_action(q_table, state, epsilon):
-    """Elige una acción usando epsilon-greedy."""
-    if random.uniform(0, 1) < epsilon:
-        return random.choice(range(len(actions)))  # Explorar
-    else:
-        x, y = state
-        return np.argmax(q_table[x, y])  # Explotar
-
-# --- ALGORITMO SARSA ---
-def sarsa(num_episodes, env):
-    q_table = initialize_q_table(env)
-    for episode in range(num_episodes):
-        state = (2, 2)  # Posición inicial del ladrón
-        action = choose_action(q_table, state, epsilon)
-
-        while True:
-            next_state = get_next_state(state, actions[action], env)
-            reward = get_reward(next_state, env)
-            next_action = choose_action(q_table, next_state, epsilon)
-
-            x, y = state
-            nx, ny = next_state
-
-            # Actualización SARSA
-            q_table[x, y, action] += alpha * (
-                reward + gamma * q_table[nx, ny, next_action] - q_table[x, y, action]
-            )
-
-            state, action = next_state, next_action
-
-            if env[state] in [3, 4]:  # Estado terminal
-                break
-    return q_table
-
-# --- ALGORITMO Q-LEARNING ---
-def q_learning(num_episodes, env):
-    q_table = initialize_q_table(env)
-    for episode in range(num_episodes):
-        state = (2, 2)  # Posición inicial del ladrón
-
-        while True:
-            action = choose_action(q_table, state, epsilon)
-            next_state = get_next_state(state, actions[action], env)
-            reward = get_reward(next_state, env)
-
-            x, y = state
-            nx, ny = next_state
-
-            # Actualización Q-Learning
-            q_table[x, y, action] += alpha * (
-                reward + gamma * np.max(q_table[nx, ny]) - q_table[x, y, action]
-            )
-
-            state = next_state
-
-            if env[state] in [3, 4]:  # Estado terminal
-                break
-    return q_table
-
-# --- EJECUCIÓN Y VISUALIZACIÓN ---
-# rows=3
-# cols=3
-num_episodes = 1000000
-
-num_states = calculate_states(environment)
-print(f"Número de estados: {num_states}")
-
-q_table_sarsa = sarsa(num_episodes, environment)
-q_table_qlearning = q_learning(num_episodes, environment)
-
-print("\nTabla Q (SARSA):")
-print(q_table_sarsa)
-
-print("\nTabla Q (Q-Learning):")
-print(q_table_qlearning)
-
-formatted_q_table = format_q_table(q_table_sarsa)
-print("Tabla Q (Formato Solicitado):")
-print(formatted_q_table)
-
-formatted_q_tableLearning = format_q_table(q_table_qlearning)
-print("Tabla Q (Formato Solicitado):")
-print(formatted_q_tableLearning)
+# print("\nTabla Q final Sarsa:")
+# Sarsa = format_q_table(q_tableSarsa, entorno)
+# print(Sarsa)

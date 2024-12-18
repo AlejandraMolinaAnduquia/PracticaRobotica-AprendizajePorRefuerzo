@@ -1,15 +1,18 @@
 import cv2
 import numpy as np
 import random
+import requests
 import math
 
 from comunicacionArduino import send_command
-# URL de DroidCam
-url = "http://192.168.43.49:4747/video"
+import diferenciaTemporalParcial
+SERVER_URL = "http://127.0.0.1:5000"  # Cambia la IP si es necesario
 
+# URL de DroidCam
+url = "http://192.168.137.221:4747/video"  # Abrir la cámara
 # Parámetros de la cuadrícula
-rows = 4  # Número de filas
-cols = 4  # Número de columnas
+rows = 5  # Número de filas
+cols = 5  # Número de columnas
 thickness = 1  # Grosor de las líneas
 
 # Valores iniciales de Canny
@@ -22,48 +25,7 @@ politica_actual = 3
 margenX =0
 margenY =0
 
-def maze_generate(filas, columnas):
-    """
-    Genera un laberinto de dimensiones filas x columnas.
-    Los caminos están representados por 0 y las paredes por 1.
-    Garantiza que (0,0) es el inicio y (filas-1,columnas-1) es la meta con un camino solucionable.
-    """
-    # Crear una matriz llena de paredes (1)
-    laberinto = [[1 for _ in range(columnas)] for _ in range(filas)]
 
-    # Direcciones de movimiento: (dx, dy) para celdas ortogonales
-    direcciones = [(0, 1), (1, 0), (0, -1), (-1, 0)]
-
-    def en_rango(x, y):
-        """Verifica si una celda está dentro del rango del laberinto."""
-        return 0 <= x < filas and 0 <= y < columnas
-
-    def dfs(x, y):
-        """Algoritmo DFS para construir el laberinto."""
-        laberinto[x][y] = 0  # Marca el camino actual como "camino"
-        random.shuffle(direcciones)  # Aleatoriza el orden de las direcciones
-        for dx, dy in direcciones:
-            nx, ny = x + 2 * dx, y + 2 * dy  # Saltar una celda para garantizar paredes entre caminos
-            if en_rango(nx, ny) and laberinto[nx][ny] == 1:  # Si es una celda válida y no visitada
-                # Romper la pared entre la celda actual y la siguiente
-                laberinto[x + dx][y + dy] = 0
-                # Continuar el DFS desde la celda siguiente
-                dfs(nx, ny)
-
-    # Inicializar el laberinto
-    laberinto[0][0] = 0  # Crear la entrada
-    dfs(0, 0)
-
-    # Crear la salida
-    laberinto[filas - 1][columnas - 1] = 0  # Asegurar que el punto final sea siempre un camino
-
-    # Conectar la salida al camino más cercano si está aislada
-    if laberinto[filas - 2][columnas - 1] == 1 and laberinto[filas - 1][columnas - 2] == 1:
-        laberinto[filas - 2][columnas - 1] = 0  # Romper la pared superior
-
-    # Devolver la matriz del laberinto
-    print(laberinto)
-    return laberinto
 
 def draw_grid(frame, rows, cols, thickness=1):
     """Dibuja una cuadrícula en el frame."""
@@ -373,58 +335,71 @@ def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politi
             
     return politica_actual, politica_anterior
     
-environment = np.array([
-[0, 0, 3, 0],
-[0, 2, 0, 0],
-[0, 0, 1, 0],
-[0, 0, 0, 4]
-])
-
-def policiasLadronesSARSA(numero):
-    import diferenciaTemporalParcial
+def policiasLadronesSARSA(numero,maze):
+    
     #funcion de crear maoa en diferenciaTemporoalParcial que cree el mapa con las posiciones de:  0: Espacio vacío (camino)
     # 1: Posición inicial del ladrón
     # 2: Posición inicial del policía, 3: Lava (estado terminal negativo), 
     # 4: Salida segura (estado terminal positivo)(siempre la ultima casilla)
-
-    q_table_sarsa = diferenciaTemporalParcial.sarsa(numero, environment)
-    print("Tabla Q final SARSA:",q_table_sarsa)
-    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa)
-    print("Tabla Q (Formato Solicitado):")
+    # Convertir maze en un array de NumPy
+    # Convertir maze en un array de NumPy
+    maze_np = np.array(maze)
+    
+    # Definir la meta en la última casilla
+    maze_np[-1, -1] = 2
+    #print("\n matriz", maze_np, "\n")
+    q_table_sarsa = diferenciaTemporalParcial.sarsa(numero, maze_np)
+    #print("Tabla Q final Learning:",q_table_sarsa)
+    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_sarsa,maze_np)
+    #print("Tabla Q_learning:")
     print(formatted_q_table)
     return formatted_q_table
 
-def policiasLadronesLearning(numero):
-    import diferenciaTemporalParcial
+def policiasLadronesLearning(numero,maze):
+    
     #funcion de crear maoa en diferenciaTemporoalParcial que cree el mapa con las posiciones de:  0: Espacio vacío (camino)
     # 1: Posición inicial del ladrón
     # 2: Posición inicial del policía, 3: Lava (estado terminal negativo), 
     # 4: Salida segura (estado terminal positivo)(siempre la ultima casilla)
-    q_table_learning = diferenciaTemporalParcial.q_learning(numero, environment)
-    print("Tabla Q final Learning:",q_table_learning)
-    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_learning)
+    
+    # Convertir maze en un array de NumPy
+    maze_np = np.array(maze)
+    
+    # Definir la meta en la última casilla
+    maze_np[-1, -1] = 2
+    #print("\n matriz", maze_np, "\n")
+    q_table_learning = diferenciaTemporalParcial.q_learning(numero, maze_np)
+    #print("Tabla Q final Learning:",q_table_learning)
+    formatted_q_table = diferenciaTemporalParcial.format_q_table(q_table_learning,maze_np)
     print("Tabla Q_learning:")
     print(formatted_q_table)
     return formatted_q_table
 
+def get_maze():
+    """
+    Realiza una petición GET a la API /maze del servidor.
 
-probabilidades = {
-    #Arriba, abajo, izquierda, derecha
-    0: [0, 0, 0, 1], 1: [0, 0, 0, 1], 2: [0, 1, 0, 0],
-    3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
-    6: [0, 0, 0, 1], 7: [0, 0, 0, 1], 8: [0, 0, 0, 0]
-}
-
-# probabilidades = {
-#     #Arriba, abajo, izquierda, derecha
-#     0: [0, 0, 0, 1], 1: [0, 1, 0, 0], 2: [0, 0, 0, 0],
-#     3: [0, 1, 0, 0], 4: [0, 0, 0, 1], 5: [0, 1, 0, 0],
-#     6: [0, 0, 0, 1], 7: [0, 1, 0, 0], 8: [0, 0, 0, 1], 9: [0, 0, 0, 1], 10: [0, 0, 0, 1], 11: [0, 1, 0, 0], 12: [0, 0, 0, 1], 13: [0, 0, 0, 1], 14: [0, 0, 0, 1], 15: [0, 0, 0, 0]
-# }
+    Returns:
+        list: Matriz del laberinto en formato JSON.
+    """
+    try:
+        response = requests.get(SERVER_URL+"/maze")
+        if response.status_code == 200:
+            maze = response.json()  # Convertir la respuesta JSON a una lista
+            # print("Laberinto recibido:")
+            # for row in maze:
+            #     print(row)
+            return maze
+        else:
+            print(f"Error al conectarse al servidor: {response.status_code}")
+            return []
+    except requests.exceptions.RequestException as e:
+        print(f"Error de conexión: {e}")
+        return []
 
 # Abre el video desde la URL
-#cap = cv2.VideoCapture(url)
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(url)
+#cap = cv2.VideoCapture(0)
 if not cap.isOpened():
     print("No se pudo conectar a la cámara en la URL proporcionada.")
 else:
@@ -435,9 +410,10 @@ else:
     cv2.createTrackbar('Canny Th1', 'Ajustes', canny_threshold1, 255, on_trackbar_change)
     cv2.createTrackbar('Canny Th2', 'Ajustes', canny_threshold2, 255, on_trackbar_change)
     cv2.createTrackbar('Dilatacion', 'Ajustes', 2, 15, on_trackbar_change)
-    maze = maze_generate(rows, cols)
-    
-    print(maze)
+    #maze = maze_generate(rows, cols)
+    maze=[[0,0,0,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]]
+
+    #print(maze)
     qr_detector = cv2.QRCodeDetector()
     
     
@@ -469,10 +445,9 @@ else:
                 angulo = shape["angle"]
                 cell_width = shape["cell_width"]
                 cell_height = shape["cell_height"]
-                politica_actual, politica_anterior= mover_robot(probabilidades,cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
-                # num=1000000
-                # politica_actual, politica_anterior= mover_robot(policiasLadronesSARSA(num),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
-                # politica_actual, politica_anterior= mover_robot(policiasLadronesLearning(num),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+                num=1000
+                politica_actual, politica_anterior= mover_robot(policiasLadronesLearning(num,maze),cell_index,x,y,angulo,cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y)
+               
         #print(detected_shapes)
         # Dibujar la cuadrícula en el frame
         frame_with_grid = draw_grid(frame_with_shapes, rows, cols, thickness)

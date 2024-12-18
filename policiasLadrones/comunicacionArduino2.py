@@ -40,5 +40,5 @@ TARGET_MAC = "00:1B:10:31:0A:AB"  # Reemplaza con la dirección MAC de tu dispos
 
 # Establecer conexión
 bluetooth_socket = bluetooth_connect(TARGET_MAC)
-for i in range(0,10):
-    send_command("w")
+for i in range(0,2):
+   send_command("w")
