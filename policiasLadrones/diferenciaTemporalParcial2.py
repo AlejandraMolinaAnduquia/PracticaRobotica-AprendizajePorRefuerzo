@@ -1,35 +1,55 @@
 import numpy as np
 import random
+import itertools
 
 # Parámetros globales
 alpha = 0.1   # Tasa de aprendizaje
 gamma = 0.9   # Factor de descuento
 epsilon = 0.1 # Factor de exploración
 
-# Matriz del terreno: 0 = camino, 1 = obstáculo (roca), la última casilla es la meta
-# entorno = np.array([[0,0,0,1,0],[0,1,0,0,0],[0,0,1,0,0],[0,0,1,0,0],[0,0,0,0,0]])
-# entorno[-1, -1] = 2  # Definir la meta en la última casilla
-
-
-# print(entorno)
-# Recompensas asociadas a cada tipo de casilla
-recompensas = {
-    0: -1,    # Camino
-    1: -100,  # Obstáculo (no transitable)
-    2: 100    # Meta
-}
-
 # Acciones posibles
 actions = ['up', 'down', 'left', 'right']
 
+def crear_entorno(filas, columnas, obstaculos=None):
+    """Crea un entorno con dimensiones variables y posibles obstáculos."""
+    entorno = np.zeros((filas, columnas), dtype=int)
+    
+    # Añadir obstáculos si se proporcionan
+    if obstaculos:
+        for obs in obstaculos:
+            entorno[obs[0], obs[1]] = 1
+    
+    return entorno
+
+def generate_start_goal_combinations(filas, columnas):
+    """Genera todas las combinaciones posibles de inicio y meta."""
+    posiciones = list(itertools.product(range(filas), range(columnas)))
+    
+    # Filtrar para evitar que inicio y meta sean la misma posición
+    combinaciones = []
+    for inicio in posiciones:
+        for meta in posiciones:
+            if inicio != meta:
+                combinaciones.append((inicio, meta))
+    
+    return combinaciones
+
 def initialize_q_table(env):
     """Inicializa una tabla Q con ceros."""
-    return np.zeros((env.shape[0] * env.shape[1], len(actions)))
+    estados = env.shape[0] * env.shape[1]
+    estadosTotales = estados * estados
+    filas = estadosTotales * 2
+    return np.zeros((filas, len(actions)))
+
 
 def state_to_index(state, env):
-    """Convierte un estado (x, y) en un índice lineal para la tabla Q."""
+    """
+    Convierte un estado (x, y) en un índice lineal para la tabla Q.
+    Devuelve valores secuenciales de 0 en adelante.
+    """
     x, y = state
-    return x * env.shape[1] + y
+    return x * env.shape[1] + y  # Cálculo directo sin multiplicaciones adicionales
+
 
 def choose_action(q_table, state, epsilon, env):
     """Elige una acción usando epsilon-greedy."""
@@ -52,53 +72,39 @@ def get_next_state(state, action, env):
         y = min(env.shape[1] - 1, y + 1)
     return (x, y)
 
-def get_reward(state, env):
+def get_reward(state, goal):
     """Devuelve la recompensa asociada a un estado."""
-    x, y = state
-    return recompensas[env[x, y]]
+    recompensas = {
+        0: -1,    # Camino
+        1: -100,  # Obstáculo (no transitable)
+        2: 100    # Meta
+    }
+    
+    if state == goal:
+        return recompensas[2]
+    return recompensas[0]
 
-def is_terminal(state, env):
+def is_terminal(state, goal):
     """Verifica si el estado es terminal (meta)."""
-    x, y = state
-    return env[x, y] == 2
+    return state == goal
 
-def sarsa(num_episodes, env):
-    q_table = initialize_q_table(env)
-    for episode in range(num_episodes):
-        state = (2, 2)  # Posición inicial del ladrón
-        action = choose_action(q_table, state, epsilon, env)
-
-        while True:
-            state_index = state_to_index(state, env)
-            next_state = get_next_state(state, action, env)
-            reward = get_reward(next_state, env)
-            next_action = choose_action(q_table, next_state, epsilon, env)
-
-            next_state_index = state_to_index(next_state, env)
-
-            # Actualización SARSA
-            q_table[state_index, action] += alpha * (
-                reward + gamma * q_table[next_state_index, next_action] - q_table[state_index, action]
-            )
-
-            state, action = next_state, next_action
-
-            if is_terminal(state, env):  
-                break
-    return q_table
-
-def q_learning(num_episodes, env):
+def q_learning(num_episodes, env, inicio, goal):
     """Implementación del algoritmo Q-Learning."""
     q_table = initialize_q_table(env)
 
     for episode in range(num_episodes):
-        state = (0, 0)  # Estado inicial
+        state = inicio  # Estado inicial
 
-        while not is_terminal(state, env):
+        while not is_terminal(state, goal):
             state_index = state_to_index(state, env)
             action = choose_action(q_table, state, epsilon, env)
             next_state = get_next_state(state, action, env)
-            reward = get_reward(next_state, env)
+            
+            # Si la próxima posición tiene un obstáculo, no se mueve
+            if env[next_state[0], next_state[1]] == 1:
+                next_state = state
+
+            reward = get_reward(next_state, goal)
 
             next_state_index = state_to_index(next_state, env)
 
@@ -111,13 +117,47 @@ def q_learning(num_episodes, env):
 
     return q_table
 
+def sarsa(num_episodes, env, inicio, goal):
+    """Implementación del algoritmo SARSA."""
+    q_table = initialize_q_table(env)
+    
+    for episode in range(num_episodes):
+        state = inicio  # Posición inicial 
+        action = choose_action(q_table, state, epsilon, env)
+
+        while not is_terminal(state, goal):
+            state_index = state_to_index(state, env)
+            next_state = get_next_state(state, action, env)
+            
+            # Si la próxima posición tiene un obstáculo, no se mueve
+            if env[next_state[0], next_state[1]] == 1:
+                next_state = state
+
+            reward = get_reward(next_state, goal)
+            next_action = choose_action(q_table, next_state, epsilon, env)
+
+            next_state_index = state_to_index(next_state, env)
+
+            # Actualización SARSA
+            q_table[state_index, action] += alpha * (
+                reward + gamma * q_table[next_state_index, next_action] - q_table[state_index, action]
+            )
+
+            state, action = next_state, next_action
+
+            if is_terminal(state, goal):  
+                break
+    return q_table
+
 def format_q_table(q_table, env):
+    """Formatear la tabla Q para facilitar su lectura."""
     formatted_dict = {}
+    estados = env.shape[0] * env.shape[1]
     index = 0  # Contador de celdas
 
     for i in range(env.shape[0]):
         for j in range(env.shape[1]):
-            state_index = state_to_index((i, j), env)
+            state_index = i * env.shape[1] + j + estados * (i * env.shape[1] + j)
             # Obtén la acción con el valor máximo y construye la lista binaria
             max_action = np.argmax(q_table[state_index])
             action_list = [1 if k == max_action else 0 for k in range(len(actions))]
@@ -128,16 +168,83 @@ def format_q_table(q_table, env):
 
     return formatted_dict
 
-# Ejecución del algoritmo
-# num_episodes = 1000
-# q_tableQLearning = q_learning(num_episodes, entorno)
-# q_tableSarsa = sarsa(num_episodes, entorno)
+def calculate_safe_position(ladron, policia, entorno):
+    """
+    Calcula una posición segura para el ladrón evitando al policía.
+    Una posición segura es aquella que maximiza la distancia entre el ladrón y el policía.
+    """
+    filas, columnas = entorno.shape
+    max_distancia = -1
+    posicion_segura = ladron
 
-# # Mostrar resultados
-# print("\nTabla Q Q_Learning:")
-# Q_learning = format_q_table(q_tableQLearning, entorno)
-# print(Q_learning)
+    for x in range(filas):
+        for y in range(columnas):
+            if entorno[x, y] == 0:  # Solo considerar celdas transitables
+                distancia = np.sqrt((x - policia[0])*2 + (y - policia[1])*2)
+                if distancia > max_distancia:
+                    max_distancia = distancia
+                    posicion_segura = (x, y)
 
-# print("\nTabla Q final Sarsa:")
-# Sarsa = format_q_table(q_tableSarsa, entorno)
-# print(Sarsa)
+    return posicion_segura
+
+
+def extract_initial_actions_only(num_episodes, entorno=None):
+    """
+    Ejecuta Q-Learning para cada combinación inicio-meta y retorna la acción en la posición inicial.
+    Devuelve un diccionario con clave (0, IDInicio, IDMeta).
+    """
+    filas, columnas = entorno.shape
+    combinaciones = generate_start_goal_combinations(filas, columnas)
+    resultados = {}
+    
+    for inicio, goal in combinaciones:
+        # Crear copia del entorno con la meta marcada
+        entorno_local = entorno.copy()
+        entorno_local[goal[0], goal[1]] = 2
+
+        # Ejecutar Q-Learning para esta combinación
+        q_table = q_learning(num_episodes, entorno_local, inicio, goal)
+        
+        # Obtener los índices del estado inicial y meta
+        id_inicio = state_to_index(inicio, entorno_local)
+        id_meta = state_to_index(goal, entorno_local)
+
+        # Obtener la acción en la posición inicial
+        acciones = q_table[id_inicio]
+        
+        # Guardar en el diccionario con clave (0, policia, ladron)
+        resultados[(0, id_inicio, id_meta)] = list(acciones)
+    
+    
+    for inicio, goal in combinaciones:
+        posicion_segura = calculate_safe_position(inicio, goal, entorno)
+        # Crear copia del entorno con la meta marcada
+        entorno_local = entorno.copy()
+        entorno_local[posicion_segura[0], posicion_segura[1]] = 2
+
+        # Ejecutar Q-Learning para esta combinación
+        q_table = q_learning(num_episodes, entorno_local, inicio, posicion_segura)
+        
+        # Obtener los índices del estado inicial y meta
+        id_inicio = state_to_index(inicio, entorno_local)
+        id_meta = state_to_index(goal, entorno_local)
+
+        # Obtener la acción en la posición inicial
+        acciones = q_table[id_inicio]
+        
+        # Guardar en el diccionario con clave (0, ladron, policia)
+        resultados[(1, id_inicio, id_meta)] = list(acciones)
+    
+    return resultados
+# Crear un entorno de ejemplo
+entorno_ejemplo = np.array([
+    [0, 1, 0],
+    [0, 1, 0],
+    [0, 0, 0]
+])
+
+# Ejecutar la función
+resultados_dict = extract_initial_actions_only(num_episodes=10000, entorno=entorno_ejemplo)
+
+# Mostrar los resultados como diccionario
+print(resultados_dict)
