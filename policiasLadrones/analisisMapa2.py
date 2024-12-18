@@ -259,43 +259,44 @@ while True:
             cell_height = [shape["cell_height"] for shape in detected_shapes]
             rol = [shape["role"] for shape in detected_shapes]
             #numeroRol=8
-            if 8 in shape_type:
-                index = shape_type.index(8)
-                cell_indexm = cell_index[index]
-                x = x[index]
-                y = y[index]
-                center_x = center_x[index]
-                center_y = center_y[index]
-                angulo = angulo[index]
-                cell_width = cell_width[index]
-                cell_height = cell_height[index]
-                rol = rol[index]
-                print("cell_index", cell_indexm)
-                print("x", x)
-                print("y", y)
-                print("center_x", center_x)
-                print("center_y", center_y)
-                print("angulo", angulo)
-                print("cell_width", cell_width)
-                print("cell_height", cell_height)
-                print("rol", rol)
-                indexEnemigo = shape_type.index(9)
-                print("indexEnemigo", indexEnemigo)
-                cell_indexEnemigo = cell_index[indexEnemigo]
-                print("cell_indexEnemigo", cell_indexEnemigo)
+            if len(shape_type) == 2:
+                if 8 in shape_type:
+                    index = shape_type.index(8)
+                    cell_indexm = cell_index[index]
+                    x = x[index]
+                    y = y[index]
+                    center_x = center_x[index]
+                    center_y = center_y[index]
+                    angulo = angulo[index]
+                    cell_width = cell_width[index]
+                    cell_height = cell_height[index]
+                    rol = rol[index]
+                    print("cell_index", cell_indexm)
+                    print("x", x)
+                    print("y", y)
+                    print("center_x", center_x)
+                    print("center_y", center_y)
+                    print("angulo", angulo)
+                    print("cell_width", cell_width)
+                    print("cell_height", cell_height)
+                    print("rol", rol)
+                    indexEnemigo = shape_type.index(9)
+                    print("indexEnemigo", indexEnemigo)
+                    cell_indexEnemigo = cell_index[indexEnemigo]
+                    print("cell_indexEnemigo", cell_indexEnemigo)
 
-            
+                
 
-            # Lógica para mover el robot usando SARSA y Q-Learning
-            politica_actual, politica_anterior = mover_robot(
-                politica, cell_indexm,cell_indexEnemigo, x, y, angulo,
-                cell_width, cell_height, politica_actual, politica_anterior,
-                center_x, center_y, rol
-            )
-            # politica_actual, politica_anterior = mover_robot(
-            #     policiasLadronesLearning(num), cell_index, x, y, angulo,
-            #     cell_width, cell_height, politica_actual, politica_anterior,
-            #     center_x, center_y
-            # )
+                # Lógica para mover el robot usando SARSA y Q-Learning
+                politica_actual, politica_anterior = mover_robot(
+                    politica, cell_indexm,cell_indexEnemigo, x, y, angulo,
+                    cell_width, cell_height, politica_actual, politica_anterior,
+                    center_x, center_y, rol
+                )
+                # politica_actual, politica_anterior = mover_robot(
+                #     policiasLadronesLearning(num), cell_index, x, y, angulo,
+                #     cell_width, cell_height, politica_actual, politica_anterior,
+                #     center_x, center_y
+                # )
 
     time.sleep(0.1)  # Breve pausa para no saturar el servidor

@@ -72,24 +72,22 @@ def get_next_state(state, action, env):
         y = min(env.shape[1] - 1, y + 1)
     return (x, y)
 
-def get_reward(state, goal):
+def get_reward(state, goal,policia=None):
     """Devuelve la recompensa asociada a un estado."""
-    recompensas = {
-        0: -1,    # Camino
-        1: -100,  # Obstáculo (no transitable)
-        2: 100,    # Meta
-        3: -500    # Policia
-    }
     
+    if policia:
+        distancia_ladron_policia = np.sqrt((state[0] - policia[0])**2 + (state[1] - policia[1])**2)
+        if distancia_ladron_policia < 2:  # Penaliza mucho si está muy cerca
+            return -100
     if state == goal:
-        return recompensas[2]
-    return recompensas[0]
+        return 100  # Meta alcanzada
+    return -1  # Recompensa neutral para otras celdas
 
 def is_terminal(state, goal):
     """Verifica si el estado es terminal (meta)."""
     return state == goal
 
-def q_learning(num_episodes, env, inicio, goal):
+def q_learning(num_episodes, env, inicio, goal,policia=None):
     """Implementación del algoritmo Q-Learning."""
     q_table = initialize_q_table(env)
 
@@ -105,7 +103,7 @@ def q_learning(num_episodes, env, inicio, goal):
             if env[next_state[0], next_state[1]] == 1:
                 next_state = state
 
-            reward = get_reward(next_state, goal)
+            reward = get_reward(next_state, goal,policia)
 
             next_state_index = state_to_index(next_state, env)
 
@@ -118,7 +116,7 @@ def q_learning(num_episodes, env, inicio, goal):
 
     return q_table
 
-def sarsa(num_episodes, env, inicio, goal):
+def sarsa(num_episodes, env, inicio, goal,policia=None):
     """Implementación del algoritmo SARSA."""
     q_table = initialize_q_table(env)
     
@@ -134,7 +132,7 @@ def sarsa(num_episodes, env, inicio, goal):
             if env[next_state[0], next_state[1]] == 1:
                 next_state = state
 
-            reward = get_reward(next_state, goal)
+            reward = get_reward(next_state, goal,policia)
             next_action = choose_action(q_table, next_state, epsilon, env)
 
             next_state_index = state_to_index(next_state, env)
@@ -170,10 +168,6 @@ def format_q_table(q_table, env):
     return formatted_dict
 
 def calculate_safe_position(ladron, policia, entorno):
-    """
-    Calcula una posición segura para el ladrón evitando al policía.
-    Una posición segura es aquella que maximiza la distancia entre el ladrón y el policía.
-    """
     filas, columnas = entorno.shape
     max_distancia = -1
     posicion_segura = ladron
@@ -181,7 +175,10 @@ def calculate_safe_position(ladron, policia, entorno):
     for x in range(filas):
         for y in range(columnas):
             if entorno[x, y] == 0:  # Solo considerar celdas transitables
-                distancia = np.sqrt((x - policia[0])*2 + (y - policia[1])*2)
+                distancia = np.sqrt((x - policia[0])**2 + (y - policia[1])**2)
+                # Penalizar celdas cercanas al policía
+                penalizacion = -0.5 * (1 / (distancia + 1e-5))
+                distancia += penalizacion
                 if distancia > max_distancia:
                     max_distancia = distancia
                     posicion_segura = (x, y)
@@ -189,7 +186,9 @@ def calculate_safe_position(ladron, policia, entorno):
     return posicion_segura
 
 
-def pqLearning(num_episodes, entorno=None):
+
+
+def pqLearning(num_episodes, entorno):
     """
     Ejecuta Q-Learning para cada combinación inicio-meta y retorna la acción en la posición inicial.
     Devuelve un diccionario con clave (0, IDInicio, IDMeta).
@@ -216,8 +215,6 @@ def pqLearning(num_episodes, entorno=None):
         # Guardar en el diccionario con clave (0, policia, ladron)
         resultados[(0, id_inicio, id_meta)] = list(acciones)
     
-    
-    for inicio, goal in combinaciones:
         posicion_segura = calculate_safe_position(inicio, goal, entorno)
         # Crear copia del entorno con la meta marcada
         entorno_local = entorno.copy()
@@ -225,7 +222,7 @@ def pqLearning(num_episodes, entorno=None):
         entorno_local[goal[0], goal[1]] = 3
 
         # Ejecutar Q-Learning para esta combinación
-        q_table = q_learning(num_episodes, entorno_local, inicio, posicion_segura)
+        q_table = q_learning(num_episodes, entorno_local, inicio, posicion_segura,goal)
         
         # Obtener los índices del estado inicial y meta
         id_inicio = state_to_index(inicio, entorno_local)
@@ -250,3 +247,4 @@ def pqLearning(num_episodes, entorno=None):
 
 # # Mostrar los resultados como diccionario
 # print(resultados_dict)
+

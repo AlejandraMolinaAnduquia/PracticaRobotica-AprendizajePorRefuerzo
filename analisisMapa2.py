@@ -416,6 +416,7 @@ else:
     #print(maze)
     qr_detector = cv2.QRCodeDetector()
     
+    maze=get_maze()
     
     contador=0
     while True:
@@ -434,7 +435,7 @@ else:
         detected_shapes, frame_with_shapes = detect_shapes_in_image(frame, rows, cols, qr_detector)
         #detected_shapes=[{"shape": "triangle","row":1,"col": 0,"cell_index": 3,"x": 100,"y": 100}]
         
-        if contador% 50==0:
+        if contador% 24==0:
             for shape in detected_shapes:
                 # Obtener las coordenadas y llamar a mover_robot
                 cell_index = shape["cell_index"]
