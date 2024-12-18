@@ -27,9 +27,9 @@ margenY =0
 
 
         
-def mover_robot(tablaQ, cell_index, x, y,angulo, cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y):
+def mover_robot(tablaQ, cell_index,cell_indexEnemigo, x, y,angulo, cell_width, cell_height, politica_actual, politica_anterior,center_x, center_y, rol):
     tolerancia=20
-    accion = np.argmax(tablaQ[cell_index])
+    accion = np.argmax(tablaQ[(rol, cell_index,cell_indexEnemigo)])
     
     print(f"Acción: {accion}")
     print(f"Ángulo: {angulo}")
@@ -191,12 +191,12 @@ def policiasLadronesLearning(numero):
     
     # Definir la meta en la última casilla
     maze_np[-1, -1] = 2
-    q_table_learning = diferenciaTemporalParcial2.q_learning(numero, maze_np)
+    q_table_learning = diferenciaTemporalParcial2.pqLearning(numero, maze_np)
     print("Tabla Q final Learning:",q_table_learning)
-    formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_learning,maze_np)
+    #formatted_q_table = diferenciaTemporalParcial2.format_q_table(q_table_learning,maze_np)
     print("Tabla Q_learning:")
-    print(formatted_q_table)
-    return formatted_q_table
+    #print(formatted_q_table)
+    return q_table_learning
 
 
 def get_detect_shapes():
@@ -218,7 +218,8 @@ def get_detect_shapes():
         print(f"Error de conexión: {e}")
         return []
 
-politica= policiasLadronesLearning(1000)
+num = 5000  # Número de episodios
+politica= policiasLadronesLearning(num)
 
 # Lógica principal
 contador = 0
@@ -242,22 +243,52 @@ while True:
     if contador % 50 == 0:
         for shape in detected_shapes:
             # Extraer atributos de la forma detectada
-            cell_index = shape["cell_index"]
-            x = shape["x"]
-            y = shape["y"]
-            center_x = shape["cell_center_x"]
-            center_y = shape["cell_center_y"]
-            angulo = shape["angle"]
-            cell_width = shape["cell_width"]
-            cell_height = shape["cell_height"]
-            rol = shape["role"]
+            # Obtenemos todos los cell_index de las formas detectadas
+            cell_index = [shape["cell_index"] for shape in detected_shapes]
+            shape_type = [shape["shape"] for shape in detected_shapes]
+            print("\nshape ",shape_type,"\n")
+
+            # Imprimimos la lista completa (por ejemplo, si hay 2 cell_index)
+            print("\ncelda\n",cell_index)
+            x = [shape["x"] for shape in detected_shapes]
+            y = [shape["y"] for shape in detected_shapes]
+            center_x = [shape["cell_center_x"] for shape in detected_shapes]
+            center_y = [shape["cell_center_y"] for shape in detected_shapes]
+            angulo = [shape["angle"] for shape in detected_shapes]
+            cell_width = [shape["cell_width"] for shape in detected_shapes]
+            cell_height = [shape["cell_height"] for shape in detected_shapes]
+            rol = [shape["role"] for shape in detected_shapes]
+            
+            if 8 in shape_type:
+                index = shape_type.index(8)
+                cell_index = cell_index[index]
+                x = x[index]
+                y = y[index]
+                center_x = center_x[index]
+                center_y = center_y[index]
+                angulo = angulo[index]
+                cell_width = cell_width[index]
+                cell_height = cell_height[index]
+                rol = rol[index]
+                print("cell_index", cell_index)
+                print("x", x)
+                print("y", y)
+                print("center_x", center_x)
+                print("center_y", center_y)
+                print("angulo", angulo)
+                print("cell_width", cell_width)
+                print("cell_height", cell_height)
+                print("rol", rol)
+                indexEnemigo = shape_type.index(9)
+                cell_indexEnemigo = cell_index[indexEnemigo]
+
+            
 
             # Lógica para mover el robot usando SARSA y Q-Learning
-            num = 1000  # Número de episodios
             politica_actual, politica_anterior = mover_robot(
-                politica, cell_index, x, y, angulo,
+                politica, cell_index,cell_indexEnemigo, x, y, angulo,
                 cell_width, cell_height, politica_actual, politica_anterior,
-                center_x, center_y
+                center_x, center_y, rol
             )
             # politica_actual, politica_anterior = mover_robot(
             #     policiasLadronesLearning(num), cell_index, x, y, angulo,

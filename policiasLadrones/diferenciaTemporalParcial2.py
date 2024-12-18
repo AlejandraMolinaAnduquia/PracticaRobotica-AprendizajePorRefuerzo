@@ -77,7 +77,8 @@ def get_reward(state, goal):
     recompensas = {
         0: -1,    # Camino
         1: -100,  # Obstáculo (no transitable)
-        2: 100    # Meta
+        2: 100,    # Meta
+        3: -500    # Policia
     }
     
     if state == goal:
@@ -188,7 +189,7 @@ def calculate_safe_position(ladron, policia, entorno):
     return posicion_segura
 
 
-def extract_initial_actions_only(num_episodes, entorno=None):
+def pqLearning(num_episodes, entorno=None):
     """
     Ejecuta Q-Learning para cada combinación inicio-meta y retorna la acción en la posición inicial.
     Devuelve un diccionario con clave (0, IDInicio, IDMeta).
@@ -221,6 +222,7 @@ def extract_initial_actions_only(num_episodes, entorno=None):
         # Crear copia del entorno con la meta marcada
         entorno_local = entorno.copy()
         entorno_local[posicion_segura[0], posicion_segura[1]] = 2
+        entorno_local[goal[0], goal[1]] = 3
 
         # Ejecutar Q-Learning para esta combinación
         q_table = q_learning(num_episodes, entorno_local, inicio, posicion_segura)
@@ -236,15 +238,15 @@ def extract_initial_actions_only(num_episodes, entorno=None):
         resultados[(1, id_inicio, id_meta)] = list(acciones)
     
     return resultados
-# Crear un entorno de ejemplo
-entorno_ejemplo = np.array([
-    [0, 1, 0],
-    [0, 1, 0],
-    [0, 0, 0]
-])
+# # Crear un entorno de ejemplo
+# entorno_ejemplo = np.array([
+#     [0, 1, 0],
+#     [0, 1, 0],
+#     [0, 0, 0]
+# ])
 
-# Ejecutar la función
-resultados_dict = extract_initial_actions_only(num_episodes=10000, entorno=entorno_ejemplo)
+# # Ejecutar la función
+# resultados_dict = extract_initial_actions_only(num_episodes=10000, entorno=entorno_ejemplo)
 
-# Mostrar los resultados como diccionario
-print(resultados_dict)
+# # Mostrar los resultados como diccionario
+# print(resultados_dict)
